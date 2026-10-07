@@ -3,7 +3,7 @@
     <!-- Instrumentation also needs INTERNET to host its loopback-only HTTP fixture. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application>
-        <activity android:name="com.tang.player.ExternalFileSenderActivity" android:exported="true" android:theme="@android:style/Theme.Material.NoActionBar" />
-        <provider android:name="com.tang.player.ExternalFixtureProvider" android:authorities="com.tang.player.test.externalfiles" android:exported="false" android:grantUriPermissions="true" />
+        <activity android:name="io.github.micro123.mediaplayer.ExternalFileSenderActivity" android:exported="true" android:theme="@android:style/Theme.Material.NoActionBar" />
+        <provider android:name="io.github.micro123.mediaplayer.ExternalFixtureProvider" android:authorities="io.github.micro123.mediaplayer.test.externalfiles" android:exported="false" android:grantUriPermissions="true" />
     </application>
 </manifest>

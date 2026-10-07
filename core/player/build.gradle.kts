@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.tang.player.core"
+    namespace = "io.github.micro123.mediaplayer.core"
     compileSdk {
         version = release(37)
     }

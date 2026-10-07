@@ -1,0 +1,37 @@
+name: 问题反馈
+description: 报告播放、浏览或界面问题
+title: '[Bug] '
+body:
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本
+      placeholder: '例如 0.12.0，GitHub Release 正式包'
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备与 Android 版本
+      placeholder: '设备型号、Android 版本'
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: 媒体来源
+      options: ['安卓媒体库', '本地文件或 SAF', '文件管理器打开', 'SMB', 'NFS', 'HTTP/HTTPS', '与来源无关']
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤与实际表现
+      description: 说明操作步骤、预期行为和实际结果；播放问题可附文件格式、编码与倍速。
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 截图或相关日志
+      description: 可选。请移除账号密码和个人信息。

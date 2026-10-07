@@ -5,6 +5,8 @@
 .android/
 .cxx/
 .externalNativeBuild/
+__pycache__/
+*.py[cod]
 **/build/
 
 # Machine-specific configuration and IDE state
@@ -16,6 +18,7 @@ captures/
 .codex/
 
 # Signing material and local secrets
+.signing/
 *.jks
 *.keystore
 keystore.properties
