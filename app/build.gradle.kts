@@ -45,6 +45,16 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Opt in for release distribution; normal debug/device-test builds stay universal.
+    splits {
+        abi {
+            isEnable = providers.gradleProperty("splitApks").orNull == "true"
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
     signingConfigs {
         if (releaseKeystorePropertiesFile.isFile) {
             create("release") {

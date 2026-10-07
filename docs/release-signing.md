@@ -29,10 +29,11 @@ export JAVA_HOME=/home/tang/.local/share/JetBrains/Toolbox/apps/android-studio/j
 export PATH="$JAVA_HOME/bin:$PATH"
 export GRADLE_USER_HOME="$PWD/.gradle-user-home"
 export ANDROID_USER_HOME="$PWD/.android"
-./gradlew :app:assembleRelease --max-workers=4 -Pkotlin.compiler.execution.strategy=in-process --console=plain --no-daemon
+./gradlew :app:assembleRelease -PsplitApks=true --max-workers=4 -Pkotlin.compiler.execution.strategy=in-process --console=plain --no-daemon
 ```
 
-签名后的 APK：`app/build/outputs/apk/release/app-release.apk`。
+0.12.1 起分包产物为 `app/build/outputs/apk/release/app-架构-release.apk`，通用包为 `app-universal-release.apk`。
+未指定 `-PsplitApks=true` 时仍生成单个通用 `app-release.apk`。GitHub 发布固定开启分包。
 release 保留 R8 代码压缩、资源压缩和既有 ProGuard 配置，构建过程使用专用密钥自动签名。
 Android Studio 中也可选择 release 构建变体并构建 APK。
 
@@ -51,9 +52,9 @@ debug 构建不需要专用密钥。缺少 `keystore.properties` 时，release �
 ```sh
 export JAVA_HOME=/home/tang/.local/share/JetBrains/Toolbox/apps/android-studio/jbr
 export PATH="$JAVA_HOME/bin:$PATH"
-/home/tang/Android/sdk/build-tools/36.0.0/apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
-/home/tang/Android/sdk/build-tools/36.0.0/zipalign -c -P 16 4 app/build/outputs/apk/release/app-release.apk
-sha256sum app/build/outputs/apk/release/app-release.apk
+/home/tang/Android/sdk/build-tools/36.0.0/apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-arm64-v8a-release.apk
+/home/tang/Android/sdk/build-tools/36.0.0/zipalign -c -P 16 4 app/build/outputs/apk/release/app-arm64-v8a-release.apk
+sha256sum app/build/outputs/apk/release/app-arm64-v8a-release.apk
 ```
 
 正式发布时应同时保存对应的源码提交、APK 和 `app/build/outputs/mapping/release/` 下的混淆映射，方便排查 release 崩溃。

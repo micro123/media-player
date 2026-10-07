@@ -67,14 +67,20 @@ git push origin v0.13.0
 `0.13.0-beta.1`、`0.13.0-rc.1` 等预发布版本会自动标记 prerelease。
 没有顶层 `LICENSE` 时自动生成 draft Release，等待维护者确定源码许可证；正常源码许可确定后生成公开 Release。
 
-构建成功后验证 APK 包名、版本号、签名指纹与对齐，再发布：
+0.12.1 起使用 `assembleRelease -PsplitApks=true` 构建，逐个验证五个 APK 的包名、版本号、签名指纹、架构和对齐，再发布：
 
-- `media-player-版本号.apk`
+- `media-player-版本号-arm64-v8a.apk`
+- `media-player-版本号-armeabi-v7a.apk`
+- `media-player-版本号-x86.apk`
+- `media-player-版本号-x86_64.apk`
+- `media-player-版本号-universal.apk`
 - `SHA256SUMS`
 - `BUILD_INFO.json`
 - `media-player-版本号-mapping.zip`
 
 R8 映射用于反混淆崩溃日志；GitHub 同时提供对应标签的源码压缩包。
+`BUILD_INFO.json` 的 `apks` 数组记录每个安装包的架构、字节数和 SHA-256。打包脚本依据 AGP output-metadata.json 选择产物，避免误发布目录中的旧 APK。
+五个包使用相同 versionCode 和发布证书，便于从 GitHub 下载后覆盖升级；每次只需安装一个包。
 项目采用 GPL-3.0-only；应用与原生依赖源码下载、重建方法集中写在 README，发布流程只构建 APK，不下载或归档原生源码。
 libmpv 等原生依赖的版本、对应源码和构建入口见 `THIRD_PARTY_NOTICES.md`。
 

@@ -47,7 +47,7 @@ jobs:
         run: python3 tools/ci/prepare-signing.py
       - name: Build signed release APK
         run: >-
-          ./gradlew :app:assembleRelease --max-workers=2
+          ./gradlew :app:assembleRelease -PsplitApks=true --max-workers=2
           -Pkotlin.compiler.execution.strategy=in-process
           --no-configuration-cache --console=plain --no-daemon
       - name: Verify and package release

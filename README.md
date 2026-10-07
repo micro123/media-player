@@ -11,12 +11,23 @@
 
 A libmpv-powered Android media player with local browsing, SMB/NFS, playlists and dedicated video/music interfaces.
 
-**当前版本：0.12.0** · **应用 ID：`io.github.micro123.mediaplayer`** · **最低 Android 8.0**
+**当前版本：0.12.1** · **应用 ID：`io.github.micro123.mediaplayer`** · **最低 Android 8.0**
 
 ## 下载与安装
 
-从 [GitHub Releases](https://github.com/micro123/media-player/releases) 下载 `media-player-版本号.apk`，按系统提示安装。
-正式包包含 arm64-v8a、armeabi-v7a、x86、x86_64 四种架构，并使用固定发布密钥签名。
+从 [GitHub Releases](https://github.com/micro123/media-player/releases) 下载对应架构的 APK，按系统提示安装。
+0.12.1 起提供四个单架构包和一个通用包，全部使用固定发布密钥签名。普通 64 位 ARM 手机优先选择 **arm64-v8a**，Moto X40 使用这一版。
+
+| 文件名后缀 | 约大小（0.12.1） | 适用设备 |
+| --- | --- | --- |
+| `-arm64-v8a.apk` | 26 MiB | 支持 64 位 ARM 应用的手机/平板，推荐优先选择 |
+| `-armeabi-v7a.apk` | 24 MiB | 使用 32 位 ARM 应用环境的设备 |
+| `-x86_64.apk` | 31 MiB | 64 位 x86 环境，例如相应模拟器 |
+| `-x86.apk` | 29 MiB | 32 位 x86 环境 |
+| `-universal.apk` | 103 MiB | 包含全部四种架构；不确定设备架构时使用，体积较大 |
+
+例如 `media-player-0.12.1-arm64-v8a.apk`。每个 APK 都是完整安装包，**只选一个安装即可**。
+分包保留原有解码能力，只排除其他 CPU 架构的原生库；包名、版本号和签名相同，可从 0.12.0 正式版覆盖升级。
 
 0.12.0 开始使用新的应用 ID，可与此前的 `com.tang.player` 测试版并存。旧版设置、书签和观看进度不会自动迁移。
 日常开发提交生成的调试 APK 可在 [Actions](https://github.com/micro123/media-player/actions/workflows/build.yml) 对应任务的 Artifacts 中获取；调试版与正式版签名不同，不能互相直接覆盖安装。
@@ -78,16 +89,17 @@ Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。
 构建签名正式包需先准备未纳入 Git 的 `keystore.properties` 与密钥库，见 [签名与打包](docs/release-signing.md)：
 
 ```sh
-./gradlew :app:assembleRelease
+./gradlew :app:assembleRelease -PsplitApks=true
 ```
 
-Release APK：`app/build/outputs/apk/release/app-release.apk`。
+Release APK：`app/build/outputs/apk/release/app-架构-release.apk`，通用包为 `app-universal-release.apk`。
+未传 `-PsplitApks=true` 时仍生成单个通用 `app-release.apk`，日常 debug 构建保持原有产物路径。
 项目源码不包含发布密钥；克隆仓库后可以直接构建调试版，不能使用项目维护者的签名身份。
 
 ## GitHub Actions 与发布
 
 - **Android CI**：提交到 `main`、向 `main` 提交 PR 或手动触发时运行单元测试、lint，构建调试 APK 与设备测试 APK，上传调试安装包和检查报告。
-- **Android Release**：推送 `v*` 标签时检查标签与源码版本一致，再测试、构建并验证签名，创建 GitHub Release，附带 APK、校验文件、构建信息和混淆映射。
+- **Android Release**：推送 `v*` 标签时检查标签与源码版本一致，再测试、按架构构建并逐个验证签名，创建 GitHub Release，附带四个单架构 APK、通用 APK、校验文件、构建信息和混淆映射。
 - 签名凭据保存在仓库 Actions Secrets，PR 构建不读取发布密钥；发布工作流可手动选择已有版本标签重试。
 
 发布版本号由 `gradle.properties` 中的 `appVersionName` 与 `appVersionCode` 管理。详细步骤见 [自动构建与发布](docs/github-actions.md)。
@@ -122,7 +134,7 @@ THIRD_PARTY_NOTICES.md          原生及网络依赖来源与许可声明
 应用源码可从每个 [Release](https://github.com/micro123/media-player/releases) 的 **Source code (zip / tar.gz)** 下载，或检出与安装包匹配的版本标签：
 
 ```sh
-git clone --branch v0.12.0 https://github.com/micro123/media-player.git
+git clone --branch v0.12.1 https://github.com/micro123/media-player.git
 cd media-player
 ./gradlew :app:assembleDebug
 ```
@@ -144,6 +156,7 @@ cd libmpv-android/buildscripts
 日常 APK 构建使用预编译 AAR，GitHub Actions 不下载或重新编译这些原生源码。
 
 - [0.12.0 发布说明](docs/releases/0.12.0.md)
+- [0.12.1 架构分包说明](docs/releases/0.12.1.md)
 - [文件排序、区间录制与可取消跳转预览](docs/browsing-and-gestures-0.11.md)
 - [文件管理器打开与应用图标](docs/external-open-and-icon-0.10.md)
 - [独立音乐界面](docs/music-player-0.9.md) · [视频方向策略](docs/video-orientation-0.9.md)
