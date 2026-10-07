@@ -1,0 +1,65 @@
+LocalPlayer 0.10.0 / versionCode 10
+Verified: 2026-10-07, Asia/Shanghai
+Device: moto X40 / LineageOS 23.2 / Android 16 / API 36 / arm64-v8a
+
+Build:
+:app:clean :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:assembleRelease
+Final clean build with --no-build-cache: BUILD SUCCESSFUL in 1m 14s.
+Gradle 9.4.1 / AGP 9.2.1 / Kotlin 2.3.10 / Compose BOM 2026.08.00
+JAVA_HOME=/home/tang/.local/share/JetBrains/Toolbox/apps/android-studio/jbr
+GRADLE_USER_HOME=$PWD/.gradle-user-home; ANDROID_USER_HOME=$PWD/.android
+--max-workers=4 -Pkotlin.compiler.execution.strategy=in-process --console=plain --no-daemon
+Lint: 0 errors, 15 warnings (storage policy and dependency/catalog recommendations).
+APK v2 debug signature verified; Debug and unsigned Release zipalign -c -P 16 4 passed.
+Final packaged resources contain the adaptive anydpi XML and monochrome vector.
+Raw final build output: verification-0.10-build.txt.
+
+Android instrumentation:
+33 passed, 0 failures, 0 skips; 117.033 seconds.
+ExternalMediaOpenTest: 4 passed.
+PlayerFeaturesTest: 20 passed.
+MpvPlaybackEngineTest: 5 passed.
+NetworkUiTest: 4 passed.
+Raw full run: verification-0.10-device.txt.
+
+New coverage:
+- Cold ACTION_VIEW opens generated MP4 from a separate APK's private content provider.
+- Sender runs as a different UID and grants only the specific URI read access.
+- Incoming file wins over saved queue restoration; full screen and default landscape verified.
+- Warm ACTION_VIEW reuses MainActivity and replaces video with ID3/cover music, then video.
+- MAIN launcher re-entry preserves paused music at 12 seconds without reloading.
+- Missing read grant shows actionable Chinese error and does not start playback.
+- MP4/MKV/MP3/FLAC and application Matroska/Ogg filters resolve to the app; image/png does not.
+- Invalid/non-local external URI schemes are rejected.
+- Actual installed icon is AdaptiveIconDrawable with a monochrome layer.
+- Actual icon rendered on device to an own-cache PNG and copied to docs/screenshots.
+- Existing native playback, lifecycle/exit, orientation/PiP, music, queue/resume/speed,
+  gestures, clips, bookmarks, M3U and settings UI regressions passed.
+- New external private-provider fixtures removed; original preferences/queue/recent restored.
+
+Build correction:
+Initial external run passed all 3 playback/grant cases, but the icon assertion failed:
+resource-directory migration had left a stale cached merged-resource output without adaptive XML.
+Disabled build-cache for a clean build; verified packaged XML with aapt2 and actual drawable on device.
+Reran mergeDebugResources/mergeReleaseResources with --rerun-tasks to refresh the local resource cache.
+Final full 33-case run passed without reruns or skips.
+
+Icon artifacts:
+assets/branding/app-icon-source.png (provided source)
+tools/create-app-icons.py (reproducible density/scaling generator)
+docs/screenshots/app-icon-preview-0.10.png (circle and rounded-square previews)
+docs/screenshots/app-icon-device-0.10.png (actual device rendering)
+
+APK SHA-256:
+bec44e89ed686d0f545c4ff0036b59522e4d75a818e7abcc2f3031ed468381f9  app/build/outputs/apk/debug/app-debug.apk
+e41d6b5605e1e4faf2d687e1c8bed2a69b888c0c31cf12f36ce6e7601215dce5  app/build/outputs/apk/release/app-release-unsigned.apk
+
+Installation and cleanup:
+0.10.0/versionCode 10 installed with -r; existing app data retained.
+Installed APK checksum matches final Debug APK.
+System implicit VIEW resolution lists com.tang.player/.MainActivity for both video/mp4 and audio/mpeg.
+Only generated test media and test-owned bookmarks/credentials removed.
+Retained bookmarks/encrypted profiles: 1/1; no orphan profiles.
+Global restricted networking mode remains true.
+App UID 10163 policy 4 (allowed); test UID 10164 policy 262144 (REJECT_ALL), unchanged this turn.
+App launched after verification.

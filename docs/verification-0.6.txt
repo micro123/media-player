@@ -1,0 +1,79 @@
+LocalPlayer 0.6.0 verification — 2026-10-07
+Device: moto X40, Android 16 / API 36
+Installed: Debug versionCode 6
+
+Build: Debug, AndroidTest, Release — successful
+Signature and 16 KB ZIP alignment — verified
+Lint: 0 errors, 14 warnings
+
+JVM test suites:
+com.tang.player.data.HttpPlaylistClientTest: 6 tests, 0 failures, 0 errors
+com.tang.player.data.M3uCodecTest: 12 tests, 0 failures, 0 errors
+com.tang.player.data.MediaSeriesGrouperTest: 22 tests, 0 failures, 0 errors
+
+Full instrumented run: 23 discovered, 22 passed, 1 environmental skip, 0 failures
+AndroidJUnitRunner counts the assumption skip in its reported total:
+
+com.tang.player.MpvPlaybackEngineTest:.....
+com.tang.player.PlayerFeaturesTest:.................
+
+Time: 85.64
+
+OK (23 tests)
+
+
+
+Explicit raw status of the network-only environmental skip:
+INSTRUMENTATION_STATUS: class=com.tang.player.PlayerFeaturesTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stream=
+com.tang.player.PlayerFeaturesTest:
+INSTRUMENTATION_STATUS: test=httpMediaAndRelativeNetworkM3uUseTheSamePlaybackFlow
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.tang.player.PlayerFeaturesTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=1
+INSTRUMENTATION_STATUS: stack=org.junit.AssumptionViolatedException: Device network stack rejects socket() before HTTP test starts: got: <android.system.ErrnoException: socket failed: ECONNREFUSED (Connection refused)>, expected: null
+	at org.junit.Assume.assumeThat(Assume.java:129)
+	at org.junit.Assume.assumeNoException(Assume.java:167)
+	at com.tang.player.PlayerFeaturesTest$httpMediaAndRelativeNetworkM3uUseTheSamePlaybackFlow$1.invokeSuspend(PlayerFeaturesTest.kt:423)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:94)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:70)
+	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source:1)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:48)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source:1)
+	at com.tang.player.PlayerFeaturesTest.httpMediaAndRelativeNetworkM3uUseTheSamePlaybackFlow(PlayerFeaturesTest.kt:413)
+	... 34 trimmed
+Caused by: android.system.ErrnoException: socket failed: ECONNREFUSED (Connection refused)
+	at libcore.io.Linux.socket(Native Method)
+	at libcore.io.ForwardingOs.socket(ForwardingOs.java:832)
+	at libcore.io.BlockGuardOs.socket(BlockGuardOs.java:402)
+	at libcore.io.ForwardingOs.socket(ForwardingOs.java:832)
+	at android.system.Os.socket(Os.java:848)
+	at com.tang.player.PlayerFeaturesTest$httpMediaAndRelativeNetworkM3uUseTheSamePlaybackFlow$1.invokeSuspend(PlayerFeaturesTest.kt:417)
+	... 44 more
+
+INSTRUMENTATION_STATUS: stream=
+com.tang.player.PlayerFeaturesTest:
+INSTRUMENTATION_STATUS: test=httpMediaAndRelativeNetworkM3uUseTheSamePlaybackFlow
+INSTRUMENTATION_STATUS_CODE: -4
+INSTRUMENTATION_RESULT: stream=
+
+Time: 1.68
+
+OK (1 test)
+
+
+INSTRUMENTATION_CODE: -1
+
+5x sync measurement on the same self-owned 1080p30 H.264 + AAC fixture:
+Before: mediacodec-copy, maximum absolute mpv avsync 3105.83 ms
+After: mediacodec, maximum absolute mpv avsync 43.93 ms
+Full-run assertion also passed: steady 5x < 300 ms; restored 1x < 100 ms
+This does not establish performance for other codecs, files or devices.

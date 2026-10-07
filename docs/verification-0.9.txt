@@ -1,0 +1,68 @@
+LocalPlayer 0.9.0 / versionCode 9
+Verified: 2026-10-07, Asia/Shanghai
+Device: moto X40 / LineageOS 23.2 / Android 16 / API 36 / arm64-v8a
+
+Build:
+:app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:assembleRelease
+Debug + minified unsigned Release: BUILD SUCCESSFUL.
+Gradle 9.4.1 / AGP 9.2.1 / Kotlin 2.3.10 / Compose BOM 2026.08.00
+JAVA_HOME=/home/tang/.local/share/JetBrains/Toolbox/apps/android-studio/jbr
+GRADLE_USER_HOME=$PWD/.gradle-user-home; ANDROID_USER_HOME=$PWD/.android
+--max-workers=4 -Pkotlin.compiler.execution.strategy=in-process --console=plain --no-daemon
+Lint: 0 errors, 14 existing warnings.
+APK v2 debug signature verified; Debug and Release zipalign -c -P 16 4 passed.
+
+JVM: 72 passed, 0 failures/errors, 0 skipped.
+PLAYER_NETWORK_TEST_HOST=127.0.0.1; real Samba + UNFS3 host protocol cases executed.
+Three new orientation default/migration/round-trip cases.
+Three audio metadata fallback, non-blocking HTTP and source-release cases.
+
+com.tang.player.data.AudioMetadataRepositoryTest: tests=3, failures=0, errors=0, skipped=0
+com.tang.player.data.HttpPlaylistClientTest: tests=6, failures=0, errors=0, skipped=0
+com.tang.player.data.M3uCodecTest: tests=12, failures=0, errors=0, skipped=0
+com.tang.player.data.MediaSeriesGrouperTest: tests=22, failures=0, errors=0, skipped=0
+com.tang.player.data.VideoOrientationTest: tests=3, failures=0, errors=0, skipped=0
+com.tang.player.data.network.NetworkErrorsTest: tests=6, failures=0, errors=0, skipped=0
+com.tang.player.data.network.NfsRpcTest: tests=5, failures=0, errors=0, skipped=0
+com.tang.player.data.network.NfsTransportTest: tests=5, failures=0, errors=0, skipped=0
+com.tang.player.data.network.RemoteAddressTest: tests=6, failures=0, errors=0, skipped=0
+com.tang.player.data.network.RemoteServerIntegrationTest: tests=4, failures=0, errors=0, skipped=0
+
+APK SHA-256:
+90dd1cb86c5a6225946403aeb5d5181e2e18a8675b8ad5ff1b5ac868617cf31b  app/build/outputs/apk/debug/app-debug.apk
+ec1da43d416956788233a9626b382fcffb5ab6a6958c2569b6cc383c78a6b23a  app/build/outputs/apk/release/app-release-unsigned.apk
+
+Android instrumentation:
+Full run: 37 cases, 36 passed; direction case failed because test relaunch occurred during the PiP transition.
+Diagnostic showed pip=true, orientation=SENSOR_LANDSCAPE, config=LANDSCAPE, small window 522x294.
+After waiting for the system PiP transition, the direction case passed on rerun (6.642 s).
+All 37 distinct cases verified, 0 remaining failures, 0 skips.
+Complete run plus targeted rerun raw output: verification-0.9-device.txt.
+
+New coverage:
+- Landscape default; legacy AUTO and invalid values migrate; explicit portrait/landscape choices preserved.
+- Settings expose Landscape(default), Portrait, Keep; no Auto choice.
+- Video opens landscape/portrait; Keep preserves both entry directions; exit restores prior Activity request.
+- Keep landscape survives PiP round trip.
+- Genuine Chinese ID3 song, artist, album, album artist, year, track extraction from generated MP3.
+- Embedded 1600x1600 cover decoded with longest dimension <= 768.
+- Portrait/landscape music layouts and absence of video orientation/PiP/aspect controls.
+- Music pause/resume/seek, tagged mini player, reopen and stop.
+- Genuine SMB/NFS audio cover and metadata extraction using independent seekable proxy FD.
+- Missing metadata safe fallback; HTTP doesn't create a second metadata connection; source handles closed.
+- Existing library, network, playlist, clips, native playback, speed, gestures and PiP regression cases passed.
+
+Screenshots contain only generated fixtures:
+docs/screenshots/music-portrait-0.9.png
+docs/screenshots/music-landscape-0.9.png
+docs/screenshots/music-info-0.9.png
+
+Cleanup and installation:
+0.9.0/versionCode 9 installed with -r; app data retained.
+Only generated test media and test-owned bookmarks/credentials removed.
+Settings, playlist and recent records restored after instrumentation.
+Final retained bookmarks/profiles: 1/1; no orphan profiles.
+App UID 10163 network allowed; test UID 10164 restored to REJECT_ALL.
+Global restricted networking mode unchanged.
+Temporary fixture Docker service stopped; only three owned ADB reverse mappings removed.
+App launched after verification.

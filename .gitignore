@@ -1,0 +1,37 @@
+# Gradle, Kotlin and Android local caches
+.gradle/
+.gradle-user-home/
+.kotlin/
+.android/
+.cxx/
+.externalNativeBuild/
+**/build/
+
+# Machine-specific configuration and IDE state
+local.properties
+.idea/
+*.iml
+captures/
+.agents/
+.codex/
+
+# Signing material and local secrets
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Packaged builds and runtime dumps
+*.apk
+*.aab
+*.hprof
+*.heapdump
+hs_err_pid*
+
+# OS metadata
+.DS_Store
+Thumbs.db

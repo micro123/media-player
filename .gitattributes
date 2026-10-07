@@ -1,0 +1,12 @@
+# Normalize text in Git; keep scripts and project sources usable across platforms.
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# Artwork, wrapper and generated test media must remain byte-for-byte intact.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.mp3 binary
+*.mp4 binary
+*.jar binary

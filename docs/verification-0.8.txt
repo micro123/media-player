@@ -1,0 +1,64 @@
+LocalPlayer 0.8.0 / versionCode 8
+Verified: 2026-10-07, Asia/Shanghai
+Device: moto X40 / LineageOS 23.2 / Android 16 / API 36 / arm64-v8a
+
+Build:
+:app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:assembleRelease
+Debug + minified unsigned Release: BUILD SUCCESSFUL.
+Gradle 9.4.1 / AGP 9.2.1 / Kotlin 2.3.10 / Compose BOM 2026.08.00
+JAVA_HOME=/home/tang/.local/share/JetBrains/Toolbox/apps/android-studio/jbr
+GRADLE_USER_HOME=$PWD/.gradle-user-home; ANDROID_USER_HOME=$PWD/.android
+--max-workers=4 -Pkotlin.compiler.execution.strategy=in-process --console=plain --no-daemon
+Lint: 0 errors, 14 existing warnings.
+APK v2 debug signature verified; Debug and Release zipalign -c -P 16 4 passed.
+
+JVM: 66 passed, 0 failures/errors, 0 skipped.
+PLAYER_NETWORK_TEST_HOST=127.0.0.1; real loopback-only Samba + UNFS3 tests executed.
+Includes six new controlled network failure classification tests.
+
+com.tang.player.data.HttpPlaylistClientTest: tests=6, failures=0, errors=0, skipped=0
+com.tang.player.data.M3uCodecTest: tests=12, failures=0, errors=0, skipped=0
+com.tang.player.data.MediaSeriesGrouperTest: tests=22, failures=0, errors=0, skipped=0
+com.tang.player.data.network.NetworkErrorsTest: tests=6, failures=0, errors=0, skipped=0
+com.tang.player.data.network.NfsRpcTest: tests=5, failures=0, errors=0, skipped=0
+com.tang.player.data.network.NfsTransportTest: tests=5, failures=0, errors=0, skipped=0
+com.tang.player.data.network.RemoteAddressTest: tests=6, failures=0, errors=0, skipped=0
+com.tang.player.data.network.RemoteServerIntegrationTest: tests=4, failures=0, errors=0, skipped=0
+
+APK SHA-256:
+7f91c037dc8476757ac4adf8d325dec966e5460ccff94c243a5217ae8be5fd15  app/build/outputs/apk/debug/app-debug.apk
+d0ebb9a726820b2e6731febf691e30edbadedeaf0633862070f6c076ca81bb8a  app/build/outputs/apk/release/app-release-unsigned.apk
+
+Android instrumentation, final complete run:
+am instrument -w -r -e networkTestHost 127.0.0.1 com.tang.player.test/androidx.test.runner.AndroidJUnitRunner
+33 passed, 0 failures, 0 skips. Duration: 103.951 s.
+Raw output: verification-0.8-device.txt.
+
+New and extended coverage:
+- Files destination filters location/folder bookmarks, storage and folder picker actions, add location, open and rename.
+- Network folder save action, root return-to-files, search/refresh/error retry and system settings action.
+- Existing network forms and credentials encryption/masking.
+- Persistent local directory bookmarks restore browser destination and parent paths.
+- Persistent remote directory bookmarks inherit encrypted credentials and retain them after original location removal.
+- Android real Samba authenticated + NFS v3 browse/read/native playback, initial seek and reverse seek.
+- Real Samba/NFS directory bookmarks still work after deleting the original server location;
+  NFS preserves the original export root when reading a bookmarked child directory.
+- HTTP/HLS/network playlist end-to-end now executes successfully on this phone.
+- All previous native playback, speed, sync, gestures, fullscreen/PiP, queue, progress and clip cases pass.
+
+Device policy diagnosis:
+Before: global restricted networking mode true; app UID 10163 and test UID 10164 each REJECT_ALL (262144).
+User authorized enabling app network and temporarily enabling test package network only.
+System Settings app-specific Allow network access toggles used; global policy unchanged.
+The socket() ECONNREFUSED from 0.7 occurred before connecting to a server.
+Controlled diagnostics now distinguish system refusal from server/authentication/share/path errors.
+
+Cleanup and final installation:
+App 0.8.0 / versionCode 8 installed with -r, existing data retained.
+App network access remains enabled; test UID 10164 restored to policy 262144 (REJECT_ALL).
+Global restricted networking mode remains true.
+Temporary test Docker server stopped; only its three ADB reverse mappings removed.
+Self-owned test directory/bookmarks/credentials removed; existing queue/recent/settings restored.
+Final bookmark count: 1; credential profile count: 1; orphan profile count: 0.
+Fixture-only screenshots saved to docs/screenshots/*-0.8.png.
+App launched after verification.

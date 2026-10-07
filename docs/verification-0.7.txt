@@ -1,0 +1,69 @@
+LocalPlayer 0.7.0 / versionCode 7
+Verified: 2026-10-07, Asia/Shanghai
+Device: moto X40, API 36, arm64-v8a
+
+Build:
+:app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:assembleRelease
+Gradle 9.4.1 / AGP 9.2.1 / Kotlin 2.3.10 / Compose BOM 2026.08.00
+JAVA_HOME=/home/tang/.local/share/JetBrains/Toolbox/apps/android-studio/jbr
+GRADLE_USER_HOME=$PWD/.gradle-user-home
+ANDROID_USER_HOME=$PWD/.android
+--max-workers=4 -Pkotlin.compiler.execution.strategy=in-process --console=plain --no-daemon
+Debug and minified unsigned Release: BUILD SUCCESSFUL.
+Latest lint: 0 errors, 14 warnings (existing dependency/update/catalog warnings).
+Debug signature: verified APK Signature Scheme v2.
+Debug and Release zipalign -c -P 16 4: passed.
+
+JVM: 60 tests, 60 passed, 0 failures/errors, 0 skipped.
+PLAYER_NETWORK_TEST_HOST=127.0.0.1 configured; all four real server cases executed.
+Temporary loopback-only Samba server + UNFS3 0.11.0, read-only generated fixtures.
+Authenticated SMB and Guest SMB, wrong password rejection, nested directories,
+Chinese/# filenames, offset reads, EOF, sparse file reads beyond 5 GiB.
+NFS v3 MOUNT / GETATTR / LOOKUP / READ / READDIR fallback against UNFS3.
+Synthetic RPC peer additionally checks READDIRPLUS pagination, verifier propagation,
+optional attributes/file handles, skipped symbolic links, stalled cookies,
+short reads, malformed count and stale file handles.
+
+com.tang.player.data.HttpPlaylistClientTest: tests=6, failures=0, errors=0, skipped=0
+com.tang.player.data.M3uCodecTest: tests=12, failures=0, errors=0, skipped=0
+com.tang.player.data.MediaSeriesGrouperTest: tests=22, failures=0, errors=0, skipped=0
+com.tang.player.data.network.NfsRpcTest: tests=5, failures=0, errors=0, skipped=0
+com.tang.player.data.network.NfsTransportTest: tests=5, failures=0, errors=0, skipped=0
+com.tang.player.data.network.RemoteAddressTest: tests=6, failures=0, errors=0, skipped=0
+com.tang.player.data.network.RemoteServerIntegrationTest: tests=4, failures=0, errors=0, skipped=0
+
+Android instrumentation, final complete run:
+am instrument -w -r -e networkTestHost 127.0.0.1 com.tang.player.test/androidx.test.runner.AndroidJUnitRunner
+32 cases: 30 passed, 2 explicit environment skips, 0 failures.
+Duration: 91.794 s. Raw runner output: verification-0.7-device.txt.
+
+Passed network feature cases:
+- AndroidKeyStore AES/GCM credentials round-trip, update/delete, no plaintext in stored profiles.
+- Android SMB authentication crypto and client construction.
+- Seekable proxy FD read/seek/EOF, repeated close releases remote handle once.
+- Actual libmpv playback from proxy FD, resume and reverse seek, stop closes handle.
+- Media filtering/natural sorting and remote M3U relative paths.
+- Duplicate directory requests, nested navigation, queue, fullscreen/stop/return, disconnect/retry.
+- SMB/NFS forms, file/refresh/back/retry controls, masked password accessibility.
+- Empty Guest SMB form input/save and original bookmark/playlist/clip UI regression.
+- Previous native/local playback, 5x sync, gestures, PiP, queue, grouping, progress and clip export.
+
+Explicit skips:
+1. HTTP/HLS/network M3U device end-to-end case.
+2. Real Samba/NFS browse/read/native streaming device end-to-end case.
+Reason in both: socket creation fails with ECONNREFUSED before a connection can begin.
+INTERNET is granted; the device local-network compatibility restriction is reported disabled.
+No assumption is made about the underlying device cause. No system network policy changed.
+Host protocol tests and phone proxy-FD/native tests passed independently; this does NOT
+claim real NAS streaming was verified on this phone.
+
+Data/cleanup:
+Only generated fixture media/bookmarks used. Existing preferences, queue, recent entries
+restored; test-owned media/progress/credentials removed.
+Screenshots show fixture-only screens, not user media/accounts.
+Temporary server stopped; test ADB reverse mappings removed; app launched after verification.
+Application installed with -r, not cleared/uninstalled.
+
+APK SHA-256:
+804a9202c31107e812f727ad440d7e68f809c986f636fbb4e2ca88b6cb65be2d  app/build/outputs/apk/debug/app-debug.apk
+3b58106258912abb9319ab4cbaff851ab8de731fc7db3f3db66068c96d091c0d  app/build/outputs/apk/release/app-release-unsigned.apk

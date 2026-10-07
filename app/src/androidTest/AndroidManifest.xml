@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Instrumentation also needs INTERNET to host its loopback-only HTTP fixture. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application>
+        <activity android:name="com.tang.player.ExternalFileSenderActivity" android:exported="true" android:theme="@android:style/Theme.Material.NoActionBar" />
+        <provider android:name="com.tang.player.ExternalFixtureProvider" android:authorities="com.tang.player.test.externalfiles" android:exported="false" android:grantUriPermissions="true" />
+    </application>
+</manifest>

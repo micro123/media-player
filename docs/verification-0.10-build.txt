@@ -1,0 +1,266 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.4.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+Unable to initialize metrics, ensure /home/tang/.android is writable, details: /home/tang/.android/analytics.settings (只读文件系统)
+
+> Task :core:player:preBuild UP-TO-DATE
+> Task :core:player:preDebugBuild UP-TO-DATE
+> Task :core:player:processDebugNavigationResources UP-TO-DATE
+> Task :core:player:generateDebugResources UP-TO-DATE
+> Task :core:player:packageDebugResources UP-TO-DATE
+> Task :core:player:parseDebugLocalResources UP-TO-DATE
+> Task :core:player:generateDebugRFile UP-TO-DATE
+> Task :app:clean
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:generateDebugBuildConfig
+> Task :app:generateDebugResources
+> Task :core:player:compileDebugKotlin UP-TO-DATE
+> Task :core:player:javaPreCompileDebug UP-TO-DATE
+> Task :core:player:compileDebugJavaWithJavac NO-SOURCE
+> Task :core:player:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :core:player:generateDebugAssets UP-TO-DATE
+> Task :core:player:mergeDebugAssets UP-TO-DATE
+> Task :core:player:processDebugJavaRes UP-TO-DATE
+> Task :core:player:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :core:player:writeDebugAarMetadata UP-TO-DATE
+> Task :core:player:extractDeepLinksDebug UP-TO-DATE
+> Task :core:player:processDebugManifest UP-TO-DATE
+> Task :core:player:mapDebugSourceSetPaths UP-TO-DATE
+> Task :core:player:compileDebugLibraryResources UP-TO-DATE
+> Task :core:player:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:player:mergeDebugNativeLibs NO-SOURCE
+> Task :core:player:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :core:player:checkDebugAarMetadata UP-TO-DATE
+> Task :core:player:stripDebugDebugSymbols NO-SOURCE
+> Task :core:player:copyDebugJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :app:packageDebugResources
+> Task :core:player:extractDebugAnnotations UP-TO-DATE
+> Task :core:player:extractDeepLinksForAarDebug UP-TO-DATE
+> Task :core:player:mergeDebugGeneratedProguardFiles UP-TO-DATE
+> Task :core:player:mergeDebugConsumerProguardFiles UP-TO-DATE
+> Task :core:player:prepareDebugArtProfile UP-TO-DATE
+> Task :core:player:prepareLintJarForPublish UP-TO-DATE
+> Task :core:player:mergeDebugJavaResource UP-TO-DATE
+> Task :core:player:syncDebugLibJars UP-TO-DATE
+> Task :core:player:bundleDebugLocalLintAar UP-TO-DATE
+> Task :core:player:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :core:player:createFullJarDebug UP-TO-DATE
+> Task :core:player:writeDebugLintModelMetadata UP-TO-DATE
+> Task :core:player:extractProguardFiles UP-TO-DATE
+> Task :core:player:generateDebugLintModel UP-TO-DATE
+> Task :core:player:lintAnalyzeDebug UP-TO-DATE
+> Task :core:player:preDebugAndroidTestBuild UP-TO-DATE
+> Task :core:player:generateDebugAndroidTestLintModel UP-TO-DATE
+> Task :app:processDebugNavigationResources
+> Task :core:player:preDebugUnitTestBuild UP-TO-DATE
+> Task :core:player:generateDebugUnitTestLintModel UP-TO-DATE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :core:player:lintAnalyzeDebugAndroidTest UP-TO-DATE
+> Task :core:player:lintAnalyzeDebugUnitTest UP-TO-DATE
+> Task :core:player:preReleaseBuild UP-TO-DATE
+> Task :app:javaPreCompileDebug
+> Task :core:player:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :core:player:mergeReleaseNativeLibs NO-SOURCE
+> Task :core:player:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :core:player:generateReleaseResources UP-TO-DATE
+> Task :core:player:packageReleaseResources UP-TO-DATE
+> Task :core:player:processReleaseNavigationResources UP-TO-DATE
+> Task :core:player:parseReleaseLocalResources UP-TO-DATE
+> Task :core:player:generateReleaseRFile UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :core:player:compileReleaseKotlin UP-TO-DATE
+> Task :app:parseDebugLocalResources
+> Task :core:player:javaPreCompileRelease UP-TO-DATE
+> Task :app:compressDebugAssets
+> Task :core:player:compileReleaseJavaWithJavac NO-SOURCE
+> Task :core:player:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :core:player:exportReleaseConsumerProguardFiles UP-TO-DATE
+> Task :core:player:bundleLibCompileToJarRelease UP-TO-DATE
+> Task :core:player:prepareReleaseArtProfile UP-TO-DATE
+> Task :core:player:writeReleaseAarMetadata UP-TO-DATE
+> Task :core:player:extractDeepLinksRelease UP-TO-DATE
+> Task :core:player:processReleaseManifest UP-TO-DATE
+> Task :core:player:mapReleaseSourceSetPaths UP-TO-DATE
+> Task :core:player:compileReleaseLibraryResources UP-TO-DATE
+> Task :core:player:bundleLibRuntimeToJarRelease UP-TO-DATE
+> Task :core:player:processReleaseJavaRes UP-TO-DATE
+> Task :core:player:generateReleaseAssets UP-TO-DATE
+> Task :core:player:mergeReleaseAssets UP-TO-DATE
+> Task :core:player:createFullJarRelease UP-TO-DATE
+> Task :core:player:generateReleaseLintModel UP-TO-DATE
+> Task :core:player:checkReleaseAarMetadata UP-TO-DATE
+> Task :core:player:stripReleaseDebugSymbols NO-SOURCE
+> Task :core:player:copyReleaseJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :core:player:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :core:player:extractReleaseAnnotations UP-TO-DATE
+> Task :core:player:mergeReleaseConsumerProguardFiles UP-TO-DATE
+> Task :core:player:mergeReleaseJavaResource UP-TO-DATE
+> Task :core:player:syncReleaseLibJars UP-TO-DATE
+> Task :core:player:bundleReleaseLocalLintAar UP-TO-DATE
+> Task :core:player:lintVitalAnalyzeRelease UP-TO-DATE
+> Task :core:player:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :core:player:generateReleaseLintVitalModel UP-TO-DATE
+> Task :app:generateDebugGlobalSynthetics
+> Task :app:generateDebugRFile
+> Task :app:checkDebugDuplicateClasses
+> Task :app:desugarDebugFileDependencies
+> Task :app:mergeLibDexDebug
+> Task :app:mapDebugSourceSetPaths
+> Task :app:checkDebugAarMetadata
+> Task :app:compileDebugNavigationResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugJniLibFolders
+> Task :app:mergeDebugResources
+> Task :app:processDebugResources
+> Task :app:mergeDebugNativeLibs
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:preDebugAndroidTestBuild SKIPPED
+> Task :app:processDebugAndroidTestManifest
+> Task :app:generateDebugAndroidTestBuildConfig
+> Task :app:generateDebugAndroidTestResources
+> Task :app:packageDebugAndroidTestResources
+> Task :app:processDebugAndroidTestNavigationResources
+> Task :app:parseDebugAndroidTestLocalResources
+> Task :app:generateDebugAndroidTestRFile
+> Task :app:javaPreCompileDebugAndroidTest
+> Task :app:generateDebugAndroidTestAssets UP-TO-DATE
+> Task :app:mergeDebugAndroidTestAssets
+> Task :app:compressDebugAndroidTestAssets
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libavcodec.so, libavdevice.so, libavfilter.so, libavformat.so, libavutil.so, libc++_shared.so, libmpv.so, libplayer.so, libswresample.so, libswscale.so. Run with --info option to learn more.
+
+> Task :app:generateDebugAndroidTestGlobalSynthetics
+> Task :app:checkDebugAndroidTestDuplicateClasses
+> Task :app:desugarDebugAndroidTestFileDependencies
+> Task :app:mergeExtDexDebugAndroidTest
+> Task :app:mergeLibDexDebugAndroidTest
+> Task :app:checkDebugAndroidTestAarMetadata
+> Task :app:mapDebugAndroidTestSourceSetPaths
+> Task :app:compileDebugAndroidTestNavigationResources
+> Task :app:mergeDebugAndroidTestJniLibFolders
+> Task :app:mergeDebugAndroidTestResources
+> Task :app:mergeDebugAndroidTestNativeLibs NO-SOURCE
+> Task :app:stripDebugAndroidTestDebugSymbols NO-SOURCE
+> Task :app:validateSigningDebugAndroidTest
+> Task :app:writeDebugAndroidTestSigningConfigVersions
+> Task :app:extractProguardFiles
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:preReleaseBuild UP-TO-DATE
+> Task :app:mergeReleaseJniLibFolders
+> Task :app:processDebugAndroidTestResources
+> Task :app:checkReleaseDuplicateClasses
+> Task :app:generateReleaseBuildConfig
+> Task :app:generateReleaseResources
+> Task :app:packageReleaseResources
+> Task :app:processReleaseNavigationResources
+> Task :app:parseReleaseLocalResources
+> Task :app:generateReleaseRFile
+> Task :app:mergeReleaseNativeLibs
+> Task :app:mergeExtDexDebug
+> Task :app:javaPreCompileRelease
+
+> Task :app:stripReleaseDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libavcodec.so, libavdevice.so, libavfilter.so, libavformat.so, libavutil.so, libc++_shared.so, libmpv.so, libplayer.so, libswresample.so, libswscale.so. Run with --info option to learn more.
+
+> Task :app:mergeReleaseArtProfile
+> Task :app:checkReleaseAarMetadata
+> Task :app:extractReleaseNativeSymbolTables
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :app:compileReleaseNavigationResources
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease
+> Task :app:processReleaseMainManifest
+> Task :app:processReleaseManifest
+> Task :app:processReleaseManifestForPackage
+> Task :app:mergeReleaseStartupProfile UP-TO-DATE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets
+> Task :app:compressReleaseAssets
+> Task :app:extractReleaseVersionControlInfo
+> Task :app:mergeReleaseResources
+> Task :app:collectReleaseDependencies
+> Task :app:sdkReleaseDependencyData
+> Task :app:writeReleaseAppMetadata
+> Task :app:writeReleaseSigningConfigVersions
+> Task :app:processReleaseResources
+
+> Task :app:compileDebugKotlin
+w: file:///home/tang/Workspace/AndroidApp/player/app/src/main/java/com/tang/player/ui/screens/VideoPlayerScreen.kt:75:48 Unnecessary safe call on a non-null receiver of type 'MainActivity'.
+
+> Task :app:compileDebugJavaWithJavac
+> Task :app:processDebugJavaRes
+
+> Task :app:compileReleaseKotlin
+w: file:///home/tang/Workspace/AndroidApp/player/app/src/main/java/com/tang/player/ui/screens/VideoPlayerScreen.kt:75:48 Unnecessary safe call on a non-null receiver of type 'MainActivity'.
+
+> Task :app:mergeDebugJavaResource
+> Task :app:dexBuilderDebug
+> Task :app:mergeProjectDexDebug
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:generateDebugLintReportModel
+> Task :app:generateDebugAndroidTestLintModel
+> Task :app:generateDebugUnitTestLintModel
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+
+> Task :app:lintAnalyzeDebugUnitTest
+Warning: Unable to initialize metrics, ensure /home/tang/.android is writable, details: /home/tang/.android/analytics.settings (只读文件系统)
+
+> Task :app:compileReleaseJavaWithJavac
+> Task :app:expandReleaseArtProfileWildcards
+> Task :app:mergeReleaseGeneratedProguardFiles UP-TO-DATE
+> Task :app:processReleaseJavaRes
+> Task :app:mergeReleaseJavaResource
+
+> Task :app:compileDebugAndroidTestKotlin
+w: file:///home/tang/Workspace/AndroidApp/player/app/src/androidTest/java/com/tang/player/NetworkSourcesTest.kt:281:102 Unnecessary non-null assertion (!!) on a non-null receiver of type 'MpvPlaybackEngine'.
+w: file:///home/tang/Workspace/AndroidApp/player/app/src/androidTest/java/com/tang/player/NetworkSourcesTest.kt:282:121 Unnecessary non-null assertion (!!) on a non-null receiver of type 'MpvPlaybackEngine'.
+w: file:///home/tang/Workspace/AndroidApp/player/app/src/androidTest/java/com/tang/player/NetworkSourcesTest.kt:283:73 Unnecessary non-null assertion (!!) on a non-null receiver of type 'MpvPlaybackEngine'.
+w: file:///home/tang/Workspace/AndroidApp/player/app/src/androidTest/java/com/tang/player/NetworkSourcesTest.kt:284:115 Unnecessary non-null assertion (!!) on a non-null receiver of type 'MpvPlaybackEngine'.
+
+> Task :app:compileDebugAndroidTestJavaWithJavac
+> Task :app:processDebugAndroidTestJavaRes
+> Task :app:mergeDebugAndroidTestJavaResource
+> Task :app:dexBuilderDebugAndroidTest
+> Task :app:lintAnalyzeDebugAndroidTest
+> Task :app:mergeProjectDexDebugAndroidTest
+> Task :app:packageDebugAndroidTest
+> Task :app:createDebugAndroidTestApkListingFileRedirect
+> Task :app:assembleDebugAndroidTest
+> Task :app:generateReleaseLintVitalReportModel
+> Task :app:produceReleaseComposeMapping
+> Task :app:reportReleaseComposeMappingErrors
+> Task :app:minifyReleaseWithR8
+> Task :app:mergeReleaseComposeMapping
+> Task :app:convertShrunkResourcesToBinaryRelease
+> Task :app:optimizeReleaseResources
+> Task :app:compileReleaseArtProfile
+> Task :app:lintAnalyzeDebug
+> Task :app:lintVitalAnalyzeRelease
+> Task :app:lintVitalReportRelease
+> Task :app:lintVitalRelease
+> Task :app:packageRelease
+> Task :app:createReleaseApkListingFileRedirect
+> Task :app:assembleRelease
+
+> Task :app:lintReportDebug
+Wrote HTML report to file:///home/tang/Workspace/AndroidApp/player/app/build/reports/lint-results-debug.html
+
+> Task :app:lintDebug
+
+BUILD SUCCESSFUL in 1m 14s
+203 actionable tasks: 128 executed, 75 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
+]9;4;0
