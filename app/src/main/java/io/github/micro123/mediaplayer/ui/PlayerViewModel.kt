@@ -41,7 +41,7 @@ data class LibraryState(
 )
 
 data class RemoteBrowserState(val root: String, val current: String, val entries: List<SourceEntry> = emptyList(),
-    val loading: Boolean = true, val error: String? = null, val networkRestricted: Boolean = false)
+    val loading: Boolean = true, val error: String? = null, val networkRestricted: Boolean = false, val parents: List<String> = emptyList())
 
 class PlayerViewModel(
     private val repository: MediaRepository,
@@ -55,6 +55,7 @@ class PlayerViewModel(
     private val network: NetworkRepository? = null,
     private val audioMetadataRepository: AudioMetadataRepository? = null,
     private val videoPreviewRepository: VideoPreviewRepository? = null,
+    private val navidrome: io.github.micro123.mediaplayer.data.navidrome.NavidromeRepository? = null,
 ) : ViewModel() {
     private val mutableSeekPreview = MutableStateFlow<VideoSeekPreview?>(null)
     val seekPreview = mutableSeekPreview.asStateFlow()
@@ -326,7 +327,8 @@ class PlayerViewModel(
 
     fun playList(items: List<MediaItem>, index: Int = 0) {
         if (items.isEmpty()) return
-        startPlayback(items.distinctBy { it.uri }, index)
+        val ordered = if (items.all { it.sourceKind == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME }) items else items.distinctBy { it.uri }
+        startPlayback(ordered, index)
     }
 
     fun playIndex(index: Int) { startPlayback(queue.value.items, index) }
@@ -372,6 +374,9 @@ class PlayerViewModel(
 
     fun openNetwork(address: String) = reportOperation {
         val validated = validateNetworkAddress(address, true)
+        if (io.github.micro123.mediaplayer.core.mediaSourceKind(validated) == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME) {
+            browseRemote(validated); return@reportOperation
+        }
         if (io.github.micro123.mediaplayer.core.mediaSourceKind(validated) in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS)) {
             browseRemote(RemoteAddress.parse(validated).address); return@reportOperation
         }
@@ -406,14 +411,19 @@ class PlayerViewModel(
     }
     fun saveNetworkLocation(name: String, address: String, id: String?, credentials: NetworkCredentials, open: Boolean) = reportOperation {
         val kind = io.github.micro123.mediaplayer.core.mediaSourceKind(address.trim())
-        val value = if (kind in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS))
+        val value = if (kind == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME)
+            io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(address).address else if (kind in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS))
             RemoteAddress.parse(address).address else validateNetworkAddress(address)
         if (open && kind == io.github.micro123.mediaplayer.core.MediaSourceKind.HTTP && id == null) { openNetwork(value); return@reportOperation }
         val bookmark = SavedBookmark(id = id ?: java.util.UUID.randomUUID().toString(), name = name.trim(), kind = BookmarkKind.LOCATION, address = value)
+        if (kind == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME) {
+            require(io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(value).profileId == bookmark.id) { "服务器书签标识不匹配" }
+            require(credentials.username.isNotBlank()) { "请输入 Navidrome 用户名" }
+        }
         require(bookmark.name.isNotBlank() && bookmark.name.length <= 200) { "书签名称须为 1～200 字" }
         require(bookmarksStore.items.value.any { it.id == bookmark.id } || bookmarksStore.items.value.size < 200) { "最多保存 200 个书签" }
         withContext(Dispatchers.IO) {
-            if (kind in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS)) {
+            if (kind in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS, io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME)) {
                 val vault = requireNotNull(network) { "网络来源未配置" }.credentials
                 val old = runCatching { vault.read(bookmark.id) }.getOrNull()
                 val auth = if (kind == io.github.micro123.mediaplayer.core.MediaSourceKind.SMB && credentials.guest)
@@ -427,10 +437,10 @@ class PlayerViewModel(
         }
         if (open) openNetwork(value) else messageChannel.send("网络位置已保存")
     }
-    private fun browseRemote(address: String, root: String = address) {
+    private fun browseRemote(address: String, root: String = address, parents: List<String> = emptyList()) {
         remoteBrowseJob?.cancel()
         val generation = ++remoteBrowseGeneration
-        val request = RemoteBrowserState(root, address)
+        val request = RemoteBrowserState(root, address, parents = parents)
         mutableRemoteBrowser.value = request
         mutableFileView.value = FileView.NETWORK
         selectTab(1)
@@ -446,21 +456,47 @@ class PlayerViewModel(
             }
         }
     }
-    fun refreshRemote() { remoteBrowser.value?.let { browseRemote(it.current, it.root) } }
+    fun refreshRemote() { remoteBrowser.value?.let { browseRemote(it.current, it.root, it.parents) } }
     fun upRemote() {
         val state = remoteBrowser.value ?: return
         if (state.current == state.root) showFileLocations()
-        else browseRemote(RemoteAddress.parse(state.current).parent(), state.root)
+        else if (io.github.micro123.mediaplayer.core.mediaSourceKind(state.current) == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME) {
+            val parent = state.parents.lastOrNull() ?: io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(state.current).parent()
+            browseRemote(parent, state.root, state.parents.dropLast(1))
+        } else browseRemote(RemoteAddress.parse(state.current).parent(), state.root)
     }
     fun openRemoteEntry(entry: SourceEntry) {
         val state = remoteBrowser.value ?: return
-        if (entry.directory) { browseRemote(entry.address, state.root); return }
-        if (entry.name.endsWith(".m3u", true) || entry.name.endsWith(".m3u8", true)) { importPlaylist(entry.address); return }
-        val ordered = sortBrowseItems(state.entries, preferences.value.fileSort, preferences.value.fileSortDescending,
+        val musicServer = io.github.micro123.mediaplayer.core.mediaSourceKind(state.current) == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME
+        if (entry.directory) {
+            val paging = musicServer && run {
+                val current = io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(state.current).route
+                val destination = io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(entry.address).route
+                current.firstOrNull() in setOf("albums", "songs", "search") &&
+                    current.dropLast(1) == destination.dropLast(1) && destination.lastOrNull()?.toIntOrNull() != null
+            }
+            browseRemote(entry.address, state.root, if (musicServer && !paging) state.parents + state.current else state.parents); return
+        }
+        if (!musicServer && (entry.name.endsWith(".m3u", true) || entry.name.endsWith(".m3u8", true))) { importPlaylist(entry.address); return }
+        val ordered = if (musicServer) state.entries else sortBrowseItems(state.entries, preferences.value.fileSort, preferences.value.fileSortDescending,
             { it.name }, { it.directory }, { it.media?.sizeBytes })
-        val items = ordered.filter { !it.directory && !it.name.endsWith(".m3u", true) && !it.name.endsWith(".m3u8", true) }.mapNotNull { it.media }
-        val index = items.indexOfFirst { it.uri == entry.address }
+        val playable = ordered.filter { it.media != null && !it.directory && (musicServer || (!it.name.endsWith(".m3u", true) && !it.name.endsWith(".m3u8", true))) }
+        val items = playable.mapNotNull { it.media }
+        val index = if (musicServer) playable.indexOfFirst { it === entry }.takeIf { it >= 0 } ?: items.indexOfFirst { it.uri == entry.address }
+            else items.indexOfFirst { it.uri == entry.address }
         if (index >= 0) playList(items, index)
+    }
+    fun searchNavidrome(query: String) {
+        val state = remoteBrowser.value ?: return
+        val value = query.trim().take(500)
+        if (value.isBlank()) return
+        val address = io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(state.current)
+        val parents = if (address.route.firstOrNull() == "search") state.parents else state.parents + state.current
+        browseRemote(address.at("search", value, "0"), state.root, parents)
+    }
+    fun playRemotePage() {
+        val items = remoteBrowser.value?.entries.orEmpty().mapNotNull { it.media }
+        if (items.isNotEmpty()) playList(items, 0)
     }
     fun savePositionBookmark(name: String) {
         val state = playback.value
@@ -486,7 +522,11 @@ class PlayerViewModel(
         messageChannel.send("书签名称已更新")
     }
     fun currentFolderName(): String = if (fileView.value == FileView.NETWORK)
-        remoteBrowser.value?.current?.let { RemoteAddress.parse(it).parts.lastOrNull() }.orEmpty()
+        remoteBrowser.value?.let { state ->
+            if (io.github.micro123.mediaplayer.core.mediaSourceKind(state.current) == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME)
+                state.parents.lastOrNull()?.let { parent -> bookmarks.value.firstOrNull { it.address == parent }?.name } ?: "Navidrome 音乐库"
+            else RemoteAddress.parse(state.current).parts.lastOrNull().orEmpty()
+        }.orEmpty()
         else library.value.folderPath.lastOrNull()?.name.orEmpty()
 
     fun saveCurrentFolderBookmark(name: String) {
@@ -502,7 +542,8 @@ class PlayerViewModel(
             withContext(Dispatchers.IO) {
                 val repository = network
                 if (remote != null && repository != null) {
-                    val profile = repository.profileFor(remote.current)
+                    val profile = if (io.github.micro123.mediaplayer.core.mediaSourceKind(remote.current) == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME)
+                        requireNotNull(navidrome).profileFor(remote.current) else repository.profileFor(remote.current)
                     repository.credentials.save(profile.copy(id = bookmark.id))
                     try { bookmarksStore.save(bookmark) }
                     catch (error: Exception) { runCatching { repository.credentials.remove(bookmark.id) }; throw error }
@@ -514,7 +555,7 @@ class PlayerViewModel(
 
     private fun openFolderBookmark(bookmark: SavedBookmark) = reportOperation {
         val uri = bookmark.address.toUri()
-        if (uri.scheme in setOf("smb", "nfs")) { openNetwork(bookmark.address); return@reportOperation }
+        if (uri.scheme in setOf("smb", "nfs", "navidrome+http", "navidrome+https")) { openNetwork(bookmark.address); return@reportOperation }
         folderJob?.cancel()
         val path = if (uri.scheme == "file") {
             require(browser.access().allFiles) { "请先在设置中开启访问所有文件权限" }

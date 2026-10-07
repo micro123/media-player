@@ -27,7 +27,8 @@ class NetworkCredentialStore(context: Context) {
     @Synchronized fun save(profile: NetworkProfile) {
         val c = profile.credentials
         val plain = JSONObject().apply {
-            put("address", RemoteAddress.parse(profile.address).address)
+            put("address", if (io.github.micro123.mediaplayer.core.mediaSourceKind(profile.address) == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME)
+                io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(profile.address).address else RemoteAddress.parse(profile.address).address)
             put("guest", c.guest); put("username", c.username); put("password", c.password)
             put("domain", c.domain); put("uid", c.uid); put("gid", c.gid)
         }.toString().toByteArray(Charsets.UTF_8)

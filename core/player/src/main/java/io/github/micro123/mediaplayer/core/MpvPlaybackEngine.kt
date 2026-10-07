@@ -392,7 +392,7 @@ class MpvPlaybackEngine(context: Context,
                 }
                 MPVLib.MpvEvent.MPV_EVENT_END_FILE -> {
                     if (mpv.getPropertyBoolean("eof-reached") == true && loaded) ended = true
-                    else error = if (media.sourceKind in setOf(MediaSourceKind.HTTP, MediaSourceKind.SMB, MediaSourceKind.NFS))
+                    else error = if (media.sourceKind in setOf(MediaSourceKind.HTTP, MediaSourceKind.SMB, MediaSourceKind.NFS, MediaSourceKind.NAVIDROME))
                         "网络播放中断，请检查网络访问权限、地址、服务器状态及媒体格式。"
                         else lastNativeError ?: "无法播放此文件，格式可能不受支持。"
                 }
@@ -427,6 +427,12 @@ class MpvPlaybackEngine(context: Context,
 
         override fun logMessage(prefix: String, level: Int, text: String) {
             if (level <= MPVLib.MpvLogLevel.MPV_LOG_LEVEL_ERROR) {
+                // Native HTTP errors can contain authenticated stream URLs.
+                if (media.sourceKind == MediaSourceKind.NAVIDROME) {
+                    enqueue { if (session === this && id == generation.get()) lastNativeError = "Navidrome 音频读取失败" }
+                    Log.w(TAG, "Navidrome native playback error")
+                    return
+                }
                 enqueue {
                     if (session === this && id == generation.get()) lastNativeError = text.trim().take(300)
                 }

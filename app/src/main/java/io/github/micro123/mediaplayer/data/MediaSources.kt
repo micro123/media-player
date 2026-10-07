@@ -15,7 +15,7 @@ interface MediaSourceProvider {
     suspend fun list(address: String): List<SourceEntry> = error("此来源暂不支持浏览目录")
 }
 
-data class SourceEntry(val address: String, val name: String, val directory: Boolean, val media: MediaItem? = null)
+data class SourceEntry(val address: String, val name: String, val directory: Boolean, val media: MediaItem? = null, val subtitle: String = "")
 
 class MediaSourceRegistry(providers: List<MediaSourceProvider>) {
     private val providers = providers.associateBy { it.kind }
@@ -35,6 +35,8 @@ class MediaSourceRegistry(providers: List<MediaSourceProvider>) {
 /** No implicit protocol guessing, command protocols, or embedded passwords in saved addresses. */
 fun validateNetworkAddress(value: String, allowFutureSources: Boolean = false): String {
     val address = value.trim()
+    if (allowFutureSources && mediaSourceKind(address) == MediaSourceKind.NAVIDROME)
+        return io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(address).address
     val uri = runCatching { URI(address) }.getOrElse { error("地址格式无效，请填写完整 URL") }
     val kind = mediaSourceKind(address)
     require(kind == MediaSourceKind.HTTP || (allowFutureSources && kind in setOf(MediaSourceKind.SMB, MediaSourceKind.NFS))) {

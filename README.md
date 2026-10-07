@@ -7,7 +7,7 @@
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
 基于 **libmpv** 的 Android 音视频播放器，使用 Kotlin、Jetpack Compose 和 Material 3。
-支持安卓媒体库、本地文件、SMB/NFS 网络目录、M3U 播放列表与书签，为视频和音乐提供独立播放界面。
+支持安卓媒体库、本地文件、SMB/NFS 网络目录、Navidrome 音乐服务器、M3U 播放列表与书签，为视频和音乐提供独立播放界面。
 
 A libmpv-powered Android media player with local browsing, SMB/NFS, playlists and dedicated video/music interfaces.
 
@@ -40,6 +40,7 @@ Release 附件中的 `SHA256SUMS` 用于校验文件，`BUILD_INFO.json` 记录�
 | --- | --- |
 | 媒体库 | 安卓 MediaStore、音频/视频筛选、最近播放、按文件名前缀与集数自动归类剧集 |
 | 文件浏览 | 共享存储与 SAF 文件夹；名称/大小/类型升降序，文件夹置顶；点击搜索图标展开搜索 |
+| Navidrome | 专辑、歌手、全部歌曲、服务器播放列表；服务器搜索与分页；原始音频播放、封面及曲目信息；加密账号与位置收藏 |
 | 网络位置 | SMB 2/3、NFS v3/TCP 只读浏览和按需播放；HTTP/HTTPS 地址；认证加密保存、位置与目录书签 |
 | 播放列表 | 持久队列、播放全部、上一项/下一项、自动下一项、顺序调整、M3U 导入/导出 |
 | 视频 | 全屏播放，默认横屏，可配置竖屏或保持；原始/4:3/16:9 比例；主动进入系统画中画 |
@@ -119,6 +120,21 @@ THIRD_PARTY_NOTICES.md          原生及网络依赖来源与许可声明
 
 来源注册表、目录浏览和播放输入解析相互独立。本地 content/file、HTTP、SMB 与 NFS 均使用稳定地址保存队列和观看进度；网络代理文件描述符支持随机读取和跳转。
 
+## Navidrome 音乐服务器
+
+在「文件 → 添加网络位置」中选择 **Navidrome**，填写服务器首页地址、用户名和密码，点击「保存并连接」。
+地址可包含反向代理子路径，例如 `https://music.example.com/navidrome`；不要填写 `/rest` API 地址。
+服务器支持 Subsonic 1.16.1 / OpenSubsonic 接口，不要求开启 Navidrome 原生管理 API。
+
+入口提供专辑、歌手、全部歌曲与服务器播放列表，搜索图标可搜索整个服务器的歌曲、专辑和歌手。
+专辑、全部歌曲与搜索结果分页浏览；专辑和服务器播放列表保留曲目顺序，可点击「播放全部」，歌曲页则播放当前页。
+音乐界面显示服务器提供的封面、歌手、专辑、年份、流派和曲目信息，播放使用原始音频并支持进度跳转与倍速。
+浏览位置可收藏，队列可保存为播放列表书签或导出 M3U。
+
+账号密码由 Android Keystore 加密保存，队列、历史与 M3U 仅保存服务器配置标识和曲目 ID。
+导出的 Navidrome M3U 是本应用的稳定地址格式，重新导入时需保留匹配的服务器配置；其他播放器不会识别这些地址。
+连接外网时建议使用 HTTPS。服务器列表为只读，当前不包含离线下载、写入服务器播放列表或收藏、歌词、服务端播放统计。
+
 ## 反馈与贡献
 
 请通过 [Issues](https://github.com/micro123/media-player/issues) 提交问题或功能建议，附上应用版本、Android 版本、来源类型和复现步骤。
@@ -134,7 +150,7 @@ THIRD_PARTY_NOTICES.md          原生及网络依赖来源与许可声明
 应用源码可从每个 [Release](https://github.com/micro123/media-player/releases) 的 **Source code (zip / tar.gz)** 下载，或检出与安装包匹配的版本标签：
 
 ```sh
-git clone --branch v0.12.1 https://github.com/micro123/media-player.git
+git clone --branch v0.13.0 https://github.com/micro123/media-player.git
 cd media-player
 ./gradlew :app:assembleDebug
 ```
@@ -155,6 +171,7 @@ cd libmpv-android/buildscripts
 原生构建的环境要求和 AAR 构建步骤见 [上游构建说明](https://github.com/jarnedemeulemeester/libmpv-android/blob/v1.0.0/buildscripts/README.md)，完整组件列表见 [第三方声明](THIRD_PARTY_NOTICES.md)。
 日常 APK 构建使用预编译 AAR，GitHub Actions 不下载或重新编译这些原生源码。
 
+- [0.13.0 Navidrome 支持](docs/releases/0.13.0.md)
 - [0.12.0 发布说明](docs/releases/0.12.0.md)
 - [0.12.1 架构分包说明](docs/releases/0.12.1.md)
 - [文件排序、区间录制与可取消跳转预览](docs/browsing-and-gestures-0.11.md)

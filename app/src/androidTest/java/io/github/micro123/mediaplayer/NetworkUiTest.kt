@@ -184,6 +184,59 @@ class NetworkUiTest {
             await("guest submitted") { saved == "smb://test-nas/share" }
         } finally { scenario.close() }
     }
+    @Test fun navidromeFormAndMusicBrowserExposeAccountSearchAndOrderedPlayback() {
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val page = mutableStateOf(0)
+        var saved: SavedBookmark? = null
+        var search = ""
+        val plays = AtomicInteger()
+        val root = io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.fromServer("http://music.example.invalid:4533")
+        val state = RemoteBrowserState(root.address, root.at("album", "fixture-album"), listOf(
+            SourceEntry(root.at("song", "b"), "曲目 B", false, MediaItem(root.at("song", "b"), "曲目 B", "audio/mpeg", null), "测试歌手 · 测试专辑"),
+            SourceEntry(root.at("song", "a"), "曲目 A", false, MediaItem(root.at("song", "a"), "曲目 A", "audio/mpeg", null))), loading = false)
+        try {
+            scenario.onActivity { activity ->
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                activity.setContent { LocalPlayerTheme {
+                    if (page.value == 0) NetworkLocationDialog(null, null, { name, address, id, auth, open ->
+                        assertEquals("测试音乐库", name); assertNotNull(id); assertFalse(auth.guest); assertTrue(open)
+                        assertTrue(auth.username == "fixture-user" && auth.password == "fixture-password")
+                        assertFalse(address.contains(auth.password))
+                        saved = SavedBookmark(id!!, name, BookmarkKind.LOCATION, address)
+                        page.value = 1
+                    }, {}) else Surface(Modifier.fillMaxSize().systemBarsPadding()) {
+                        NavidromeBrowserScreen(state, {}, {}, {}, { search = it }, { plays.incrementAndGet() }, {}, {})
+                    }
+                } }
+            }
+            await("Navidrome source choice") { contains("Navidrome") }
+            click("Navidrome")
+            await("account fields") { contains("用户名") && contains("密码") }
+            fun input(index: Int, value: String) {
+                val editors = mutableListOf<AccessibilityNodeInfo>()
+                walk(instrumentation.uiAutomation.rootInActiveWindow) { if (it.isEditable) editors += it; false }
+                assertTrue(editors[index].performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, android.os.Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
+                }))
+                instrumentation.waitForIdleSync()
+            }
+            input(0, "http://music.example.invalid:4533"); input(1, "测试音乐库")
+            input(2, "fixture-user"); input(3, "fixture-password")
+            click("保存并连接")
+            await("music source submitted") { saved != null && contains("播放全部（2 首）") }
+            assertNull(walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable })
+            assertFalse(contains("文件排序"))
+            click("播放全部（2 首）"); await("server ordered playback action") { plays.get() == 1 }
+            click("搜索")
+            await("music search expands") { walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable } != null }
+            input(0, "服务器曲目")
+            // The submit text and search icon share a label; the open icon is now labelled 关闭搜索.
+            click("搜索"); await("server query submitted") { search == "服务器曲目" }
+            click("关闭搜索")
+            await("music search hidden") { walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable } == null }
+        } finally { scenario.close() }
+    }
+
     @Test fun connectionFormsDirectoryAndRetryControls() {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         val page = mutableStateOf(0); val opened = AtomicInteger(); val refreshed = AtomicInteger(); val up = AtomicInteger()

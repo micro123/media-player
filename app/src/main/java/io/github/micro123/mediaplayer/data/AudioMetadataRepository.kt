@@ -16,12 +16,18 @@ data class AudioMetadata(val uri: String = "", val title: String = "", val artis
     val composer: String = "", val bitrate: Long = 0, val cover: Bitmap? = null, val loading: Boolean = false)
 
 /** Reads tags and embedded artwork independently of playback, using the same local/remote FD abstraction. */
-class AudioMetadataRepository(private val sources: PlaybackSourceResolver) {
+class AudioMetadataRepository(private val sources: PlaybackSourceResolver,
+    private val remoteTags: (suspend (MediaItem) -> io.github.micro123.mediaplayer.data.navidrome.NavidromeAudioTags)? = null) {
     suspend fun read(media: MediaItem): AudioMetadata = withContext(Dispatchers.IO) {
         val fallback = AudioMetadata(uri = media.uri, title = media.displayName)
         // Live HTTP streams may not be seekable files. Do not open a second unbounded HTTP connection for tags.
         if (media.sourceKind == MediaSourceKind.HTTP) return@withContext fallback
         try {
+            if (media.sourceKind == MediaSourceKind.NAVIDROME) {
+                val tags = requireNotNull(remoteTags).invoke(media)
+                return@withContext AudioMetadata(media.uri, tags.title.ifBlank { media.displayName }, tags.artist, tags.album,
+                    tags.albumArtist, tags.year, tags.genre, tags.track, bitrate = tags.bitrate, cover = tags.artwork?.let(::decodeCover))
+            }
             sources.open(media).use { source ->
                 require(source.input.startsWith("fd://"))
                 ParcelFileDescriptor.fromFd(source.input.substringAfter("fd://").toInt()).use { fd ->

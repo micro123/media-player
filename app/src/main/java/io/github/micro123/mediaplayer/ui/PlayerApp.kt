@@ -44,7 +44,7 @@ import io.github.micro123.mediaplayer.ui.theme.VideoPlayerTheme
 fun PlayerApp(container: AppContainer) {
     val factory = remember(container) { viewModelFactory { initializer {
         PlayerViewModel(container.mediaRepository, container.createPlaybackEngine(), createSavedStateHandle(), container.mediaBrowser,
-            container.playbackStore, container.bookmarks, container.playlists, container.clips, container.network, container.audioMetadata, container.videoPreviews)
+            container.playbackStore, container.bookmarks, container.playlists, container.clips, container.network, container.audioMetadata, container.videoPreviews, container.navidrome)
     } } }
     val viewModel: PlayerViewModel = viewModel(factory = factory)
     val activity = LocalActivity.current as? MainActivity
@@ -135,7 +135,7 @@ fun PlayerApp(container: AppContainer) {
         } else action()
     }
     val openSavedBookmark: (SavedBookmark) -> Unit = { bookmark ->
-        if (io.github.micro123.mediaplayer.core.mediaSourceKind(bookmark.address) in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.HTTP, io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS) || bookmark.items.any { it.sourceKind != io.github.micro123.mediaplayer.core.MediaSourceKind.LOCAL }) {
+        if (io.github.micro123.mediaplayer.core.mediaSourceKind(bookmark.address) in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.HTTP, io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS, io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME) || bookmark.items.any { it.sourceKind != io.github.micro123.mediaplayer.core.MediaSourceKind.LOCAL }) {
             withNetworkAccess { viewModel.openBookmark(bookmark) }
         } else viewModel.openBookmark(bookmark)
     }
@@ -262,7 +262,14 @@ fun PlayerApp(container: AppContainer) {
                             fileSortDescending = preferences.fileSortDescending, onFileSort = viewModel::setFileSort)
                     }
                     FileView.NETWORK -> remoteBrowser?.let { state ->
-                        browsingState.SaveableStateProvider("remote-${state.current}") {
+                        val musicServer = io.github.micro123.mediaplayer.core.mediaSourceKind(state.current) == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME
+                        browsingState.SaveableStateProvider(if (musicServer) "navidrome-${state.root}" else "remote-${state.current}") {
+                            if (musicServer) NavidromeBrowserScreen(state, { entry -> withNetworkAccess { viewModel.openRemoteEntry(entry) } },
+                                viewModel::upRemote, { withNetworkAccess { viewModel.refreshRemote() } },
+                                { query -> withNetworkAccess { viewModel.searchNavidrome(query) } },
+                                { withNetworkAccess { viewModel.playRemotePage() } }, { bookmarkDialog = "folder" }, {
+                                    activity?.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${activity.packageName}".toUri()))
+                                }, modifier) else
                             NetworkBrowserScreen(state, { entry -> withNetworkAccess { viewModel.openRemoteEntry(entry) } },
                                 viewModel::upRemote, { withNetworkAccess { viewModel.refreshRemote() } }, modifier,
                                 fileSort = preferences.fileSort, fileSortDescending = preferences.fileSortDescending, onFileSort = viewModel::setFileSort,

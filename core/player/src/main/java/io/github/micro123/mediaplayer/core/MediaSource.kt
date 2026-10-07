@@ -4,13 +4,14 @@ import android.content.Context
 import androidx.core.net.toUri
 
 /** A playback address is stable identity; native input and its lifetime are resolved separately. */
-enum class MediaSourceKind { LOCAL, HTTP, SMB, NFS, UNSUPPORTED }
+enum class MediaSourceKind { LOCAL, HTTP, SMB, NFS, NAVIDROME, UNSUPPORTED }
 
 fun mediaSourceKind(address: String): MediaSourceKind = when (address.substringBefore(':', "").lowercase()) {
     "content", "file" -> MediaSourceKind.LOCAL
     "http", "https" -> MediaSourceKind.HTTP
     "smb" -> MediaSourceKind.SMB
     "nfs" -> MediaSourceKind.NFS
+    "navidrome+http", "navidrome+https" -> MediaSourceKind.NAVIDROME
     else -> MediaSourceKind.UNSUPPORTED
 }
 
@@ -34,7 +35,7 @@ class AndroidPlaybackSourceResolver(context: Context) : PlaybackSourceResolver {
             catch (error: Throwable) { fd.close(); throw error }
         }
         MediaSourceKind.HTTP -> OpenedMediaSource(media.uri)
-        MediaSourceKind.SMB, MediaSourceKind.NFS -> error("此网络位置已保留，尚未安装 ${media.uri.substringBefore(':').uppercase()} 来源适配器。")
+        MediaSourceKind.SMB, MediaSourceKind.NFS, MediaSourceKind.NAVIDROME -> error("此网络位置已保留，尚未安装 ${media.uri.substringBefore(':').uppercase()} 来源适配器。")
         MediaSourceKind.UNSUPPORTED -> error("不支持的媒体地址。")
     }
 }

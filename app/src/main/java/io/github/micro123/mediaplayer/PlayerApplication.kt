@@ -20,16 +20,20 @@ class AppContainer(private val application: Application,
 ) {
     val bookmarks = BookmarkRepository(application)
     val network = io.github.micro123.mediaplayer.data.network.NetworkRepository(application, bookmarks)
-    val mediaRepository = MediaRepository(application, network.providers + providers)
+    val navidrome = io.github.micro123.mediaplayer.data.navidrome.NavidromeRepository(bookmarks, network.credentials)
+    private val remoteSources = io.github.micro123.mediaplayer.data.network.RemotePlaybackSourceResolver(application, network::open)
+    private val resolvedSources = playbackSources ?: io.github.micro123.mediaplayer.core.PlaybackSourceResolver { media ->
+        if (media.sourceKind == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME) navidrome.open(media) else remoteSources.open(media)
+    }
+    val mediaRepository = MediaRepository(application, network.providers + navidrome + providers)
     val mediaBrowser = MediaBrowserRepository(application)
     val playbackStore = PlaybackStore(application)
     val playlists = PlaylistRepository(application, mediaRepository, network)
     val clips = AndroidClipExporter(application)
-    val audioMetadata = io.github.micro123.mediaplayer.data.AudioMetadataRepository(playbackSources ?:
-        io.github.micro123.mediaplayer.data.network.RemotePlaybackSourceResolver(application, network::open))
+    val audioMetadata = io.github.micro123.mediaplayer.data.AudioMetadataRepository(resolvedSources, navidrome::tags)
     val videoPreviews = io.github.micro123.mediaplayer.data.VideoPreviewRepository(io.github.micro123.mediaplayer.core.AndroidPlaybackSourceResolver(application))
 
     // A new instance belongs to each PlayerViewModel; it is released in onCleared().
     fun createPlaybackEngine(): PlaybackEngine = MpvPlaybackEngine(application,
-        playbackSources ?: io.github.micro123.mediaplayer.data.network.RemotePlaybackSourceResolver(application, network::open))
+        resolvedSources)
 }

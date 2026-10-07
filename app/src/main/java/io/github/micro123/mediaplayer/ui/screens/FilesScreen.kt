@@ -42,7 +42,8 @@ fun FilesScreen(bookmarks: List<SavedBookmark>, onStorage: () -> Unit, onFolder:
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Column(Modifier.fillMaxWidth().clickable { onOpen(bookmark) }.padding(vertical = 4.dp)) {
                         Text(bookmark.name, style = MaterialTheme.typography.titleMedium)
-                        Text(if (bookmark.address.startsWith("file:") || bookmark.address.startsWith("content:")) "本地文件夹"
+                        Text(if (bookmark.address.startsWith("navidrome+")) "Navidrome 音乐库 · ${io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(bookmark.address).server}"
+                            else if (bookmark.address.startsWith("file:") || bookmark.address.startsWith("content:")) "本地文件夹"
                             else "${if (bookmark.kind == BookmarkKind.FOLDER) "网络文件夹" else "网络位置"} · ${bookmark.address}",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

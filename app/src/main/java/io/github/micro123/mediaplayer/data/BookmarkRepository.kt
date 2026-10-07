@@ -30,8 +30,10 @@ class BookmarkRepository(context: Context) {
         if (bookmark.kind == BookmarkKind.LOCATION) validateNetworkAddress(bookmark.address, allowFutureSources = true)
         if (bookmark.kind == BookmarkKind.FOLDER) {
             val uri = java.net.URI(bookmark.address)
-            require(uri.scheme in setOf("file", "content", "smb", "nfs")) { "不支持的目录书签" }
+            require(uri.scheme in setOf("file", "content", "smb", "nfs", "navidrome+http", "navidrome+https")) { "不支持的目录书签" }
             if (uri.scheme in setOf("smb", "nfs")) io.github.micro123.mediaplayer.data.network.RemoteAddress.parse(bookmark.address)
+            if (io.github.micro123.mediaplayer.core.mediaSourceKind(bookmark.address) == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME)
+                io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(bookmark.address)
             require(bookmark.folderDocumentId.length <= 4096) { "目录标识过长" }
         }
         require(bookmark.items.size <= M3uCodec.MAX_ENTRIES) { "书签列表过大" }

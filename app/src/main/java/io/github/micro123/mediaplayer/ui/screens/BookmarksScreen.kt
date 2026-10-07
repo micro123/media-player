@@ -31,7 +31,7 @@ fun BookmarksScreen(items: List<SavedBookmark>, onOpen: (SavedBookmark) -> Unit,
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(bookmark.name, style = MaterialTheme.typography.titleMedium)
                     Text(when (bookmark.kind) {
-                        BookmarkKind.LOCATION -> "网络位置 · ${bookmark.address}"
+                        BookmarkKind.LOCATION -> if (bookmark.address.startsWith("navidrome+")) "Navidrome · ${io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(bookmark.address).server}" else "网络位置 · ${bookmark.address}"
                         BookmarkKind.FOLDER -> "目录书签 · ${bookmark.name}"
                         BookmarkKind.POSITION -> "播放位置 · ${formatTime(bookmark.positionMs)} · ${bookmark.items.firstOrNull()?.displayName.orEmpty()}"
                         BookmarkKind.PLAYLIST -> "播放列表 · ${bookmark.items.size} 项"
@@ -50,7 +50,11 @@ fun BookmarksScreen(items: List<SavedBookmark>, onOpen: (SavedBookmark) -> Unit,
 @Composable
 fun NetworkLocationDialog(initial: SavedBookmark?, initialCredentials: io.github.micro123.mediaplayer.data.network.NetworkCredentials?,
     onSubmit: (String, String, String?, io.github.micro123.mediaplayer.data.network.NetworkCredentials, Boolean) -> Unit, onDismiss: () -> Unit) {
-    var address by rememberSaveable(initial?.id) { mutableStateOf(initial?.address.orEmpty()) }
+    val existingMusic = initial?.address?.startsWith("navidrome+") == true
+    var musicServer by rememberSaveable(initial?.id) { mutableStateOf(existingMusic) }
+    val profileId = rememberSaveable(initial?.id) { initial?.id ?: java.util.UUID.randomUUID().toString() }
+    var address by rememberSaveable(initial?.id) { mutableStateOf(if (existingMusic)
+        io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.parse(initial.address).server else initial?.address.orEmpty()) }
     var name by rememberSaveable(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     // Passwords are deliberately not written into saved instance state.
     var password by remember(initial?.id, initialCredentials) { mutableStateOf(initialCredentials?.password.orEmpty()) }
@@ -59,23 +63,35 @@ fun NetworkLocationDialog(initial: SavedBookmark?, initialCredentials: io.github
     var guest by remember(initial?.id, initialCredentials) { mutableStateOf(initialCredentials?.guest ?: true) }
     var uid by remember(initial?.id, initialCredentials) { mutableStateOf((initialCredentials?.uid ?: 65534).toString()) }
     var gid by remember(initial?.id, initialCredentials) { mutableStateOf((initialCredentials?.gid ?: 65534).toString()) }
-    val kind = io.github.micro123.mediaplayer.core.mediaSourceKind(address.trim())
-    val remote = kind in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS)
+    val kind = if (musicServer) io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME else io.github.micro123.mediaplayer.core.mediaSourceKind(address.trim())
+    val remote = musicServer || kind in setOf(io.github.micro123.mediaplayer.core.MediaSourceKind.SMB, io.github.micro123.mediaplayer.core.MediaSourceKind.NFS)
     val error = runCatching {
-        if (remote) io.github.micro123.mediaplayer.data.network.RemoteAddress.parse(address) else io.github.micro123.mediaplayer.data.validateNetworkAddress(address)
+        if (musicServer) {
+            io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.fromServer(address, profileId)
+            require(username.isNotBlank()) { "请输入用户名" }
+        } else if (remote) io.github.micro123.mediaplayer.data.network.RemoteAddress.parse(address) else io.github.micro123.mediaplayer.data.validateNetworkAddress(address)
         if (kind == io.github.micro123.mediaplayer.core.MediaSourceKind.SMB && !guest) require(username.isNotBlank()) { "请输入用户名" }
         if (kind == io.github.micro123.mediaplayer.core.MediaSourceKind.NFS) require(uid.toLongOrNull() in 0L..0xffffffffL && gid.toLongOrNull() in 0L..0xffffffffL) { "UID / GID 须为 0～4294967295" }
     }.exceptionOrNull()?.message
     val credentialsLoading = initial != null && remote && initialCredentials == null
     fun submit(open: Boolean) {
-        val auth = io.github.micro123.mediaplayer.data.network.NetworkCredentials(guest, username, password, domain,
+        val auth = io.github.micro123.mediaplayer.data.network.NetworkCredentials(if (musicServer) false else guest, username, password, domain,
             uid.toLongOrNull() ?: 65534, gid.toLongOrNull() ?: 65534)
-        onSubmit(name.trim().ifBlank { java.net.URI(address.trim()).host }, address, initial?.id, auth, open)
+        val savedAddress = if (musicServer) io.github.micro123.mediaplayer.data.navidrome.NavidromeAddress.fromServer(address, profileId).address else address
+        onSubmit(name.trim().ifBlank { if (musicServer) "Navidrome · ${java.net.URI(address.trim()).host}" else java.net.URI(address.trim()).host },
+            savedAddress, if (musicServer) profileId else initial?.id, auth, open)
         onDismiss()
     }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(if (initial == null) "网络地址" else "编辑网络位置") }, text = {
         Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(address, { address = it }, label = { Text("地址") }, placeholder = { Text("smb://服务器/Movies") },
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !musicServer, onClick = { musicServer = false }, label = { Text("网络地址") })
+                FilterChip(selected = musicServer, onClick = {
+                    musicServer = true
+                    if (!address.trim().startsWith("http")) address = ""
+                }, label = { Text("Navidrome") })
+            }
+            OutlinedTextField(address, { address = it }, label = { Text("地址") }, placeholder = { Text(if (musicServer) "http://服务器:4533" else "smb://服务器/Movies") },
                 modifier = Modifier.fillMaxWidth(), singleLine = true, isError = address.isNotBlank() && error != null)
             OutlinedTextField(name, { name = it.take(200) }, label = { Text("书签名称（选填）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             if (kind == io.github.micro123.mediaplayer.core.MediaSourceKind.SMB) {
@@ -89,6 +105,11 @@ fun NetworkLocationDialog(initial: SavedBookmark?, initialCredentials: io.github
                     OutlinedTextField(domain, { domain = it.take(256) }, label = { Text("域（选填）") }, singleLine = true)
                 }
             }
+            if (musicServer) {
+                OutlinedTextField(username, { username = it.take(256) }, label = { Text("用户名") }, singleLine = true)
+                OutlinedTextField(password, { password = it.take(4096) }, label = { Text("密码") }, singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+            }
             if (kind == io.github.micro123.mediaplayer.core.MediaSourceKind.NFS) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(uid, { uid = it.take(10) }, label = { Text("UID") }, singleLine = true, modifier = Modifier.weight(1f),
@@ -100,6 +121,7 @@ fun NetworkLocationDialog(initial: SavedBookmark?, initialCredentials: io.github
             Text(if (address.isNotBlank() && error != null) error else when (kind) {
                 io.github.micro123.mediaplayer.core.MediaSourceKind.SMB -> "SMB 2 / 3：填写共享目录，可指定端口。账号密码加密保存。"
                 io.github.micro123.mediaplayer.core.MediaSourceKind.NFS -> "NFS v3 / TCP：填写实际导出的根目录，例如 nfs://服务器/volume1/video。服务端需允许非特权源端口（insecure）。"
+                io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME -> "填写服务器首页地址（支持反向代理子路径）。可浏览专辑、歌手、歌曲与服务器播放列表。账号密码加密保存。"
                 else -> "HTTP / HTTPS 支持媒体与 M3U 地址；SMB / NFS 可浏览共享目录。"
             }, style = MaterialTheme.typography.bodySmall)
             if (credentialsLoading) Text("正在读取认证配置…", style = MaterialTheme.typography.bodySmall)
