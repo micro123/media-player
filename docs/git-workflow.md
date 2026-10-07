@@ -130,7 +130,8 @@ git push origin v0.10.0
 
 本项目已配置 origin 为 git@github.com:micro123/media-player.git，无需再次执行 git remote add。
 本机 GitHub SSH 连接使用 ssh.github.com:443；主机密钥已与 GitHub 官方 Ed25519 指纹核对，公开密钥保存在本仓库 .git/github-known-hosts，通过仓库级 core.sshCommand 指定。未修改全局 SSH 配置；该配置不随源码提交。
-日常提交后使用 git push 同步；git commit 只保存本地历史。远端仓库的可见性应按项目分享需求选择。当前尚未推送代码。
+日常提交后使用 git push 同步；git commit 只保存本地历史。2026-10-07 已将 main 推送到公开仓库，并发布 v0.12.0；旧版 v0.10.0/v0.11.0 标签保留在本地。
+0.12.0 起正式包名为 io.github.micro123.mediaplayer，版本号集中在 gradle.properties。提交触发 CI，匹配版本的标签触发签名 Release，步骤见 [自动构建与发布](github-actions.md)。
 
 ## Android Studio
 
