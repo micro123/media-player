@@ -41,7 +41,8 @@ data class LibraryState(
 )
 
 data class RemoteBrowserState(val root: String, val current: String, val entries: List<SourceEntry> = emptyList(),
-    val loading: Boolean = true, val error: String? = null, val networkRestricted: Boolean = false, val parents: List<String> = emptyList())
+    val loading: Boolean = true, val error: String? = null, val networkRestricted: Boolean = false, val parents: List<String> = emptyList(),
+    val queueLoading: Boolean = false, val queueLoadedCount: Int = 0)
 
 class PlayerViewModel(
     private val repository: MediaRepository,
@@ -56,6 +57,7 @@ class PlayerViewModel(
     private val audioMetadataRepository: AudioMetadataRepository? = null,
     private val videoPreviewRepository: VideoPreviewRepository? = null,
     private val navidrome: io.github.micro123.mediaplayer.data.navidrome.NavidromeRepository? = null,
+    private val onAudioStarting: (() -> Unit)? = null,
 ) : ViewModel() {
     private val mutableSeekPreview = MutableStateFlow<VideoSeekPreview?>(null)
     val seekPreview = mutableSeekPreview.asStateFlow()
@@ -66,6 +68,7 @@ class PlayerViewModel(
     private val mutableRemoteBrowser = MutableStateFlow<RemoteBrowserState?>(null)
     val remoteBrowser = mutableRemoteBrowser.asStateFlow()
     private var remoteBrowseJob: Job? = null
+    private var remoteQueueJob: Job? = null
     private var remoteBrowseGeneration = 0L
     val bookmarks = bookmarksStore.items
     private val messageChannel = Channel<String>(Channel.BUFFERED)
@@ -177,6 +180,7 @@ class PlayerViewModel(
     }
 
     fun showFileLocations() {
+        cancelRemoteQueue()
         ++remoteBrowseGeneration
         remoteBrowseJob?.cancel()
         mutableRemoteBrowser.value = null
@@ -192,10 +196,12 @@ class PlayerViewModel(
     }
 
     fun onBackground() {
-        if (playback.value.media?.isVideo == true || loadJob?.isActive == true || externalOpenJob?.isActive == true) stopPlayback() else pause()
+        if (playback.value.media?.isVideo == true) stopPlayback()
+        // Music continues in its foreground service, including queue changes and screen-off playback.
     }
 
     fun stopPlayback() {
+        cancelRemoteQueue()
         val snapshot = playback.value
         clearSeekPreview()
         externalOpenJob?.cancel()
@@ -326,6 +332,7 @@ class PlayerViewModel(
     }
 
     fun playList(items: List<MediaItem>, index: Int = 0) {
+        cancelRemoteQueue()
         if (items.isEmpty()) return
         val ordered = if (items.all { it.sourceKind == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME }) items else items.distinctBy { it.uri }
         startPlayback(ordered, index)
@@ -337,6 +344,7 @@ class PlayerViewModel(
 
     private fun startPlayback(items: List<MediaItem>, index: Int, showPlayer: Boolean = true, explicitPosition: Long? = null, external: Boolean = false) {
         val selected = items.getOrNull(index) ?: return
+        cancelRemoteQueue()
         clearSeekPreview()
         val oldState = playback.value
         setSpeedBoost(false)
@@ -356,6 +364,7 @@ class PlayerViewModel(
                 val recent = (listOf(media) + library.value.recent.filterNot { it.uri == media.uri }).take(LocalMediaRepository.MAX_RECENT)
                 repository.writeRecent(recent)
                 mutableLibrary.update { it.copy(recent = recent) }
+                if (!media.isVideo) onAudioStarting?.invoke()
                 engine.load(media, explicitPosition ?: mutableResume.value)
                 savedStateHandle["selected_uri"] = media.uri
                 savedStateHandle["full_screen"] = media.isVideo
@@ -438,6 +447,7 @@ class PlayerViewModel(
         if (open) openNetwork(value) else messageChannel.send("网络位置已保存")
     }
     private fun browseRemote(address: String, root: String = address, parents: List<String> = emptyList()) {
+        cancelRemoteQueue()
         remoteBrowseJob?.cancel()
         val generation = ++remoteBrowseGeneration
         val request = RemoteBrowserState(root, address, parents = parents)
@@ -494,9 +504,38 @@ class PlayerViewModel(
         val parents = if (address.route.firstOrNull() == "search") state.parents else state.parents + state.current
         browseRemote(address.at("search", value, "0"), state.root, parents)
     }
-    fun playRemotePage() {
-        val items = remoteBrowser.value?.entries.orEmpty().mapNotNull { it.media }
-        if (items.isNotEmpty()) playList(items, 0)
+    fun cancelRemoteQueue() {
+        remoteQueueJob?.cancel()
+        remoteQueueJob = null
+        mutableRemoteBrowser.update { it?.copy(queueLoading = false, queueLoadedCount = 0) }
+    }
+    fun playRemoteAll() {
+        val state = remoteBrowser.value ?: return
+        if (state.loading || state.error != null || state.queueLoading) return
+        val generation = remoteBrowseGeneration
+        mutableRemoteBrowser.update { it?.copy(queueLoading = true, queueLoadedCount = 0) }
+        remoteQueueJob = viewModelScope.launch {
+            try {
+                val items = requireNotNull(navidrome).collectSongs(state.current) { count ->
+                    withContext(Dispatchers.Main) {
+                        if (remoteBrowseGeneration == generation) mutableRemoteBrowser.update { it?.copy(queueLoadedCount = count) }
+                    }
+                }
+                check(items.isNotEmpty()) { "没有可播放的歌曲" }
+                if (remoteBrowseGeneration != generation) return@launch
+                // The queue changes only after every page succeeds. Failures/cancellation leave existing playback intact.
+                remoteQueueJob = null
+                mutableRemoteBrowser.update { it?.copy(queueLoading = false, queueLoadedCount = 0) }
+                playList(items, 0)
+            } catch (error: CancellationException) { throw error }
+            catch (error: Exception) { messageChannel.send(error.message ?: "无法读取完整歌曲列表，请重试") }
+            finally {
+                if (remoteBrowseGeneration == generation && remoteQueueJob === kotlinx.coroutines.currentCoroutineContext()[Job]) {
+                    remoteQueueJob = null
+                    mutableRemoteBrowser.update { it?.copy(queueLoading = false, queueLoadedCount = 0) }
+                }
+            }
+        }
     }
     fun savePositionBookmark(name: String) {
         val state = playback.value
@@ -656,9 +695,7 @@ class PlayerViewModel(
         val value = queue.value
         val target = index + delta
         if (index !in value.items.indices || target !in value.items.indices) return
-        val selectedUri = value.current?.uri
-        val items = value.items.toMutableList().apply { add(target, removeAt(index)) }
-        mutableQueue.value = PlaylistState(items, items.indexOfFirst { it.uri == selectedUri })
+        mutableQueue.value = value.move(index, target)
     }
 
     fun setSpeed(value: Double) {
@@ -710,8 +747,9 @@ class PlayerViewModel(
 
     fun togglePlayback() {
         if (!playback.value.canControl) return
-        if (playback.value.status == PlaybackStatus.PLAYING) pause() else engine.play()
+        if (playback.value.status == PlaybackStatus.PLAYING) pause() else play()
     }
+    fun play() { if (playback.value.canControl) engine.play() }
     fun pause() { setSpeedBoost(false); engine.pause() }
     fun setFileSort(sort: BrowseSort, descending: Boolean) {
         mutablePreferences.update { it.copy(fileSort = sort, fileSortDescending = descending) }

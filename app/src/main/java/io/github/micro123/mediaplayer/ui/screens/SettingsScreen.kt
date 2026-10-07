@@ -15,6 +15,7 @@ import io.github.micro123.mediaplayer.ui.components.AspectChoices
 import io.github.micro123.mediaplayer.ui.components.SpeedControls
 import io.github.micro123.mediaplayer.ui.components.SkipDurationControls
 import io.github.micro123.mediaplayer.ui.components.OrientationChoices
+import io.github.micro123.mediaplayer.ui.components.AboutSection
 
 @Composable
 fun SettingsScreen(preferences: PlayerPreferences, speed: Double, onSpeed: (Double) -> Unit, onRememberSpeed: (Boolean) -> Unit,
@@ -45,11 +46,12 @@ fun SettingsScreen(preferences: PlayerPreferences, speed: Double, onSpeed: (Doub
         Text("当前 ${preferences.skipSeconds} 秒，应用于所有视频；超过剩余时长会跳到结尾。", style = MaterialTheme.typography.bodySmall)
         HorizontalDivider()
         Text("视频手势", style = MaterialTheme.typography.titleMedium)
-        Text("单击显示控制 · 双击播放/暂停\n左右滑动调整进度\n左侧上下滑调亮度 · 右侧上下滑调音量\n长按临时 2 倍当前速度（最高 5.0 倍）")
+        Text("单击显示控制 · 双击中间播放/暂停\n横屏双击左侧 / 右侧：快退 / 快进 10 秒\n左右滑动预览进度，滑入顶部取消区域可取消\n左侧上下滑调亮度 · 右侧上下滑调音量\n长按临时 2 倍当前速度（最高 5.0 倍）")
         Text("播放进度自动保存，重新打开时继续上次位置，也可一键从头播放。")
         HorizontalDivider()
-        Text("libmpv · mpv 0.41.0\n应用版本 ${io.github.micro123.mediaplayer.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
         OutlinedButton(onClick = onClearRecent, enabled = canClear, modifier = Modifier.fillMaxWidth()) { Text("清空最近打开记录") }
         Text("只移除最近列表，不删除设备文件、播放列表或观看进度。", style = MaterialTheme.typography.bodySmall)
+        HorizontalDivider()
+        AboutSection()
     }
 }

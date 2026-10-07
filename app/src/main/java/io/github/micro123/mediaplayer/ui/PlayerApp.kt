@@ -26,10 +26,6 @@ import androidx.core.net.toUri
 import androidx.core.content.edit
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.createSavedStateHandle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.micro123.mediaplayer.AppContainer
 import io.github.micro123.mediaplayer.MainActivity
 import io.github.micro123.mediaplayer.core.PlaybackStatus
@@ -42,11 +38,7 @@ import io.github.micro123.mediaplayer.ui.theme.VideoPlayerTheme
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerApp(container: AppContainer) {
-    val factory = remember(container) { viewModelFactory { initializer {
-        PlayerViewModel(container.mediaRepository, container.createPlaybackEngine(), createSavedStateHandle(), container.mediaBrowser,
-            container.playbackStore, container.bookmarks, container.playlists, container.clips, container.network, container.audioMetadata, container.videoPreviews, container.navidrome)
-    } } }
-    val viewModel: PlayerViewModel = viewModel(factory = factory)
+    val viewModel = remember(container) { container.player }
     val activity = LocalActivity.current as? MainActivity
     val library by viewModel.library.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
@@ -267,9 +259,9 @@ fun PlayerApp(container: AppContainer) {
                             if (musicServer) NavidromeBrowserScreen(state, { entry -> withNetworkAccess { viewModel.openRemoteEntry(entry) } },
                                 viewModel::upRemote, { withNetworkAccess { viewModel.refreshRemote() } },
                                 { query -> withNetworkAccess { viewModel.searchNavidrome(query) } },
-                                { withNetworkAccess { viewModel.playRemotePage() } }, { bookmarkDialog = "folder" }, {
+                                { withNetworkAccess { viewModel.playRemoteAll() } }, { bookmarkDialog = "folder" }, {
                                     activity?.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${activity.packageName}".toUri()))
-                                }, modifier) else
+                                }, modifier, onCancelQueue = viewModel::cancelRemoteQueue) else
                             NetworkBrowserScreen(state, { entry -> withNetworkAccess { viewModel.openRemoteEntry(entry) } },
                                 viewModel::upRemote, { withNetworkAccess { viewModel.refreshRemote() } }, modifier,
                                 fileSort = preferences.fileSort, fileSortDescending = preferences.fileSortDescending, onFileSort = viewModel::setFileSort,
@@ -281,8 +273,8 @@ fun PlayerApp(container: AppContainer) {
                 }
                 2 -> PlaylistContent(queue, preferences.autoNext, viewModel::setAutoNext, selectQueueItem,
                     viewModel::removeFromQueue, viewModel::moveQueueItem, addFiles, modifier.fillMaxSize().padding(20.dp),
-                    onImport = importPlaylist, onExport = { playlistWriter.launch("LocalPlayer-playlist.m3u") },
-                    onSaveBookmark = { bookmarkDialog = "playlist" })
+                    onImport = importPlaylist, onExport = { playlistWriter.launch("媒体播放器-播放列表.m3u") },
+                    onSaveBookmark = { bookmarkDialog = "playlist" }, onPreview = container.queuePreviews::read)
                 4 -> BookmarksScreen(bookmarks, openSavedBookmark, viewModel::removeBookmark,
                     { editingLocation = null; showNetwork = true }, editBookmark, modifier)
                 else -> SettingsScreen(preferences, speed, viewModel::setSpeed, viewModel::setRememberSpeed,
@@ -318,13 +310,13 @@ fun PlayerApp(container: AppContainer) {
             } })
         val playbackOverlays: @Composable () -> Unit = {
             if (showClip) ClipDialog(clip, playback, viewModel::markClipStart, viewModel::markClipEnd,
-                { showClip = false; clipWriter.launch("LocalPlayer-clip-${System.currentTimeMillis()}.mp4") },
+                { showClip = false; clipWriter.launch("媒体播放器-录制-${System.currentTimeMillis()}.mp4") },
                 viewModel::cancelClip, { showClip = false })
             if (showSpeed) SpeedDialog(speed, preferences, viewModel::setSpeed, viewModel::setRememberSpeed) { showSpeed = false }
             if (showAspect) AspectDialog(preferences.aspect, viewModel::setAspect) { showAspect = false }
             if (showQueue) PlaylistSheet(queue, preferences.autoNext, viewModel::setAutoNext,
                 { selectQueueItem(it); showQueue = false }, viewModel::removeFromQueue, viewModel::moveQueueItem,
-                { showQueue = false; addFiles() }, { showQueue = false })
+                { showQueue = false; addFiles() }, { showQueue = false }, onPreview = container.queuePreviews::read)
             if (showVideoSettings && isVideo) VideoSettingsDialog(preferences, viewModel::setAspect,
                 viewModel::setSkipSeconds, viewModel::setAutoNext, viewModel::setVideoOrientation) { showVideoSettings = false }
         }

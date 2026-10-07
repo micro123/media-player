@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private var aspect = 16.0 / 9.0
     private var videoBounds: Rect? = null
     private var pendingExternalMedia: ExternalMediaRequest? = null
+    private var pendingOpenMusic = false
     var openedFromExternal = false
         private set
     private val pipReceiver = object : BroadcastReceiver() {
@@ -68,6 +69,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun receiveExternalMedia(intent: Intent) {
+        if (intent.action == MusicPlaybackService.ACTION_OPEN) {
+            openedFromExternal = false
+            pendingOpenMusic = true
+            dispatchExternalMedia()
+            return
+        }
         try {
             val request = ExternalMediaRequest.fromIntent(intent) ?: return
             openedFromExternal = true
@@ -80,6 +87,10 @@ class MainActivity : ComponentActivity() {
 
     private fun dispatchExternalMedia() {
         val target = player ?: return
+        if (pendingOpenMusic) {
+            pendingOpenMusic = false
+            target.showAudioPlayer(true)
+        }
         val request = pendingExternalMedia ?: return
         pendingExternalMedia = null
         target.openExternal(request)

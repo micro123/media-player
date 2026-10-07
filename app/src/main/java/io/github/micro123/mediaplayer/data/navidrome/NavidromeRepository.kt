@@ -4,12 +4,14 @@ import io.github.micro123.mediaplayer.core.*
 import io.github.micro123.mediaplayer.data.*
 import io.github.micro123.mediaplayer.data.network.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 import org.json.JSONArray
 import org.json.JSONObject
 
 data class NavidromeAudioTags(val title: String, val artist: String, val album: String, val albumArtist: String,
-    val year: String, val genre: String, val track: String, val bitrate: Long, val artwork: ByteArray?)
+    val year: String, val genre: String, val track: String, val bitrate: Long, val artwork: ByteArray?, val durationMs: Long = 0, val sizeBytes: Long? = null)
 
 /** Browsing is read-only; playlists stay in their server order, queues carry stable song IDs. */
 class NavidromeRepository(private val bookmarks: BookmarkRepository, private val vault: NetworkCredentialStore) : MediaSourceProvider {
@@ -57,7 +59,43 @@ class NavidromeRepository(private val bookmarks: BookmarkRepository, private val
         val art = song.optString("coverArt").takeIf { it.isNotBlank() }?.let { runCatching { client.cover(it) }.getOrNull() }
         NavidromeAudioTags(song.label("title"), song.label("artist"), song.label("album"), song.label("albumArtist"),
             song.optInt("year").takeIf { it > 0 }?.toString().orEmpty(), song.label("genre"),
-            song.optInt("track").takeIf { it > 0 }?.toString().orEmpty(), song.optLong("bitRate").coerceAtLeast(0) * 1000, art)
+            song.optInt("track").takeIf { it > 0 }?.toString().orEmpty(), song.optLong("bitRate").coerceAtLeast(0) * 1000, art, (song.optDouble("duration", 0.0).coerceIn(0.0, 31536000.0) * 1000).toLong(), song.optLong("size").takeIf { it >= 0 })
+    }
+
+    /** Playback is independent of the visible page. Read metadata only; audio is streamed on demand. */
+    suspend fun collectSongs(address: String, onProgress: suspend (Int) -> Unit = {}): List<MediaItem> = withContext(Dispatchers.IO) {
+        val parsed = NavidromeAddress.parse(address)
+        val category = parsed.route.firstOrNull()
+        if (category in setOf("album", "playlist")) {
+            val items = list(address).mapNotNull { it.media }
+            coroutineContext.ensureActive()
+            onProgress(items.size)
+            return@withContext items
+        }
+        require(category in setOf("songs", "search") && parsed.route.size == if (category == "search") 3 else 2) { "请进入歌曲、专辑或播放列表后播放全部" }
+        val client = NavidromeClient(profileFor(address))
+        val items = linkedMapOf<String, MediaItem>()
+        var offset = 0
+        while (true) {
+            coroutineContext.ensureActive()
+            val result = client.request("search3", mapOf("query" to if (category == "search") parsed.route[1] else "",
+                "songCount" to "$QUEUE_PAGE_SIZE", "songOffset" to "$offset", "artistCount" to "0", "albumCount" to "0"))
+                .optJSONObject("searchResult3")
+            coroutineContext.ensureActive()
+            val page = objects(result?.optJSONArray("song"))
+            if (page.isEmpty()) break
+            require(page.size <= QUEUE_PAGE_SIZE) { "服务器返回的歌曲数量超出请求范围，请检查服务器版本" }
+            val before = items.size
+            for (song in page) {
+                val media = songEntry(parsed, song).media!!
+                items[media.uri] = media
+                require(items.size <= MAX_QUEUE_SONGS) { "完整歌曲列表超过 $MAX_QUEUE_SONGS 首，请缩小搜索范围后播放" }
+            }
+            check(items.size > before) { "服务器没有正确返回后续歌曲，请刷新音乐库后重试" }
+            offset += page.size // Some servers return fewer than requested; continue until an empty page.
+            onProgress(items.size)
+        }
+        items.values.toList()
     }
 
     override suspend fun list(address: String): List<SourceEntry> = withContext(Dispatchers.IO) {
@@ -145,5 +183,9 @@ class NavidromeRepository(private val bookmarks: BookmarkRepository, private val
     private fun JSONObject.label(key: String) = optString(key).take(500).takeUnless { it == "null" }.orEmpty()
     private fun JSONObject.id() = getString("id").also { require(it.isNotBlank() && it.length <= 1024 && '\u0000' !in it) { "服务器返回了无效标识" } }
     private fun objects(array: JSONArray?) = if (array == null) emptyList() else List(array.length()) { array.getJSONObject(it) }
-    companion object { const val PAGE_SIZE = 100 }
+    companion object {
+        const val PAGE_SIZE = 100
+        private const val QUEUE_PAGE_SIZE = 500
+        private const val MAX_QUEUE_SONGS = 100_000
+    }
 }

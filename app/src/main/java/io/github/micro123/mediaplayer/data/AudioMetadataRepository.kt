@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
 
 data class AudioMetadata(val uri: String = "", val title: String = "", val artist: String = "", val album: String = "",
     val albumArtist: String = "", val year: String = "", val genre: String = "", val track: String = "",
-    val composer: String = "", val bitrate: Long = 0, val cover: Bitmap? = null, val loading: Boolean = false)
+    val composer: String = "", val bitrate: Long = 0, val cover: Bitmap? = null, val loading: Boolean = false, val durationMs: Long = 0, val sizeBytes: Long? = null)
 
 /** Reads tags and embedded artwork independently of playback, using the same local/remote FD abstraction. */
 class AudioMetadataRepository(private val sources: PlaybackSourceResolver,
@@ -26,7 +26,7 @@ class AudioMetadataRepository(private val sources: PlaybackSourceResolver,
             if (media.sourceKind == MediaSourceKind.NAVIDROME) {
                 val tags = requireNotNull(remoteTags).invoke(media)
                 return@withContext AudioMetadata(media.uri, tags.title.ifBlank { media.displayName }, tags.artist, tags.album,
-                    tags.albumArtist, tags.year, tags.genre, tags.track, bitrate = tags.bitrate, cover = tags.artwork?.let(::decodeCover))
+                    tags.albumArtist, tags.year, tags.genre, tags.track, bitrate = tags.bitrate, cover = tags.artwork?.let(::decodeCover), durationMs = tags.durationMs, sizeBytes = tags.sizeBytes)
             }
             sources.open(media).use { source ->
                 require(source.input.startsWith("fd://"))
@@ -40,7 +40,8 @@ class AudioMetadataRepository(private val sources: PlaybackSourceResolver,
                             text(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST), text(MediaMetadataRetriever.METADATA_KEY_YEAR),
                             text(MediaMetadataRetriever.METADATA_KEY_GENRE), text(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER),
                             text(MediaMetadataRetriever.METADATA_KEY_COMPOSER), text(MediaMetadataRetriever.METADATA_KEY_BITRATE).toLongOrNull() ?: 0,
-                            reader.embeddedPicture?.let(::decodeCover))
+                            reader.embeddedPicture?.let(::decodeCover), durationMs = text(MediaMetadataRetriever.METADATA_KEY_DURATION).toLongOrNull()?.coerceAtLeast(0) ?: 0,
+                            sizeBytes = media.sizeBytes ?: fd.statSize.takeIf { it >= 0 })
                     } finally { reader.release() }
                 }
             }

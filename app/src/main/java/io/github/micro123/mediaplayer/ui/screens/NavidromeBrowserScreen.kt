@@ -23,7 +23,7 @@ import io.github.micro123.mediaplayer.ui.components.SearchButton
 @Composable
 fun NavidromeBrowserScreen(state: RemoteBrowserState, onOpen: (SourceEntry) -> Unit, onUp: () -> Unit,
     onRefresh: () -> Unit, onSearch: (String) -> Unit, onPlay: () -> Unit, onBookmark: () -> Unit,
-    onNetworkSettings: () -> Unit, modifier: Modifier = Modifier) {
+    onNetworkSettings: () -> Unit, modifier: Modifier = Modifier, onCancelQueue: () -> Unit = {}) {
     val address = remember(state.current) { NavidromeAddress.parse(state.current) }
     var searchOpen by rememberSaveable(state.root) { mutableStateOf(false) }
     var query by rememberSaveable(state.root) { mutableStateOf("") }
@@ -65,8 +65,16 @@ fun NavidromeBrowserScreen(state: RemoteBrowserState, onOpen: (SourceEntry) -> U
             else Text("可返回文件页编辑账号，或检查服务器后刷新。", style = MaterialTheme.typography.bodySmall)
         }
         val songs = state.entries.count { it.media != null }
-        if (!state.loading && state.error == null && songs > 0) TextButton(onClick = onPlay) {
-            Text("${if (category in setOf("album", "playlist")) "播放全部" else "播放本页"}（$songs 首）")
+        if (state.queueLoading) {
+            LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("正在读取完整歌曲列表，已读取 ${state.queueLoadedCount} 首…", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onCancelQueue) { Text("取消加载") }
+            }
+        } else if (!state.loading && state.error == null && (songs > 0 || category in setOf("songs", "search"))) {
+            TextButton(onClick = onPlay) {
+                Text(if (category in setOf("album", "playlist")) "播放全部（$songs 首）" else "播放全部歌曲")
+            }
         }
         if (!state.loading && state.error == null && state.entries.isEmpty()) Text("没有找到音乐或播放列表", Modifier.padding(vertical = 24.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 12.dp)) {

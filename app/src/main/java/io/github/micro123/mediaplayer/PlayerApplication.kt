@@ -33,6 +33,25 @@ class AppContainer(private val application: Application,
     val audioMetadata = io.github.micro123.mediaplayer.data.AudioMetadataRepository(resolvedSources, navidrome::tags)
     val videoPreviews = io.github.micro123.mediaplayer.data.VideoPreviewRepository(io.github.micro123.mediaplayer.core.AndroidPlaybackSourceResolver(application))
 
+    private val playerStore = androidx.lifecycle.ViewModelStore()
+    private val playerOwner = object : androidx.lifecycle.ViewModelStoreOwner { override val viewModelStore = playerStore }
+    val player: io.github.micro123.mediaplayer.ui.PlayerViewModel by lazy {
+        androidx.lifecycle.ViewModelProvider(playerOwner, object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                io.github.micro123.mediaplayer.ui.PlayerViewModel(mediaRepository, createPlaybackEngine(), sessionState(),
+                    mediaBrowser, playbackStore, bookmarks, playlists, clips, network, audioMetadata, videoPreviews, navidrome,
+                    onAudioStarting = { MusicPlaybackService.start(application) }) as T
+        })[io.github.micro123.mediaplayer.ui.PlayerViewModel::class.java]
+    }
+
+    // Only browsing/player presentation lives here. Persistent preferences, queues and
+    // progress use PlaybackStore; a killed process must not silently restart music.
+    @android.annotation.SuppressLint("VisibleForTests")
+    private fun sessionState() = androidx.lifecycle.SavedStateHandle()
+
+    val queuePreviews = io.github.micro123.mediaplayer.data.QueuePreviewRepository(audioMetadata, videoPreviews, java.io.File(application.cacheDir, "queue-previews-v1"))
+
     // A new instance belongs to each PlayerViewModel; it is released in onCleared().
     fun createPlaybackEngine(): PlaybackEngine = MpvPlaybackEngine(application,
         resolvedSources)

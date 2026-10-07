@@ -13,9 +13,31 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+data class VideoDetails(val durationMs: Long = 0, val width: Int = 0, val height: Int = 0, val bitrate: Long = 0, val sizeBytes: Long? = null)
+
 /** One bounded local-frame reader; never creates extra network connections. */
 class VideoPreviewRepository(private val sources: PlaybackSourceResolver) {
     private val cache = LruCache<String, Bitmap>(12)
+    suspend fun details(media: MediaItem): VideoDetails = withContext(Dispatchers.IO) {
+        if (!media.isVideo || media.sourceKind != MediaSourceKind.LOCAL) return@withContext VideoDetails(sizeBytes = media.sizeBytes)
+        try {
+            sources.open(media).use { source ->
+                require(source.input.startsWith("fd://"))
+                ParcelFileDescriptor.fromFd(source.input.substringAfter("fd://").toInt()).use { fd ->
+                    val reader = MediaMetadataRetriever()
+                    try {
+                        reader.setDataSource(fd.fileDescriptor)
+                        fun number(key: Int) = reader.extractMetadata(key)?.toLongOrNull()?.coerceAtLeast(0) ?: 0
+                        VideoDetails(number(MediaMetadataRetriever.METADATA_KEY_DURATION),
+                            number(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH).toInt(), number(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT).toInt(),
+                            number(MediaMetadataRetriever.METADATA_KEY_BITRATE), media.sizeBytes ?: fd.statSize.takeIf { it >= 0 })
+                    } finally { reader.release() }
+                }
+            }
+        } catch (error: CancellationException) { throw error }
+        catch (_: Exception) { VideoDetails(sizeBytes = media.sizeBytes) }
+    }
+
     suspend fun read(media: MediaItem, positionMs: Long): Bitmap? = withContext(Dispatchers.IO) {
         if (!media.isVideo || media.sourceKind != MediaSourceKind.LOCAL) return@withContext null
         val position = positionMs.coerceAtLeast(0) / 1000 * 1000

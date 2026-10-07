@@ -441,7 +441,7 @@ class PlayerFeaturesTest {
         await("browsing navigation restored") { findAccessibleText("媒体库") != null && findAccessibleText("播放列表 · 2") != null }
         assertTrue(player.queue.value.items.all { it.uri == first.uri || it.uri == second.uri })
         saveScreenshot("app-queue-ui.png")
-        clickAccessibleText("▶ 1. ${first.displayName}")
+        clickAccessibleText(first.displayName)
         await("reopen resumes saved video") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.positionMs in 11_800..16_000 }
         assertTrue(player.fullScreen.value)
         assertNull("Browsing navigation exposed during video", findAccessibleText("媒体库"))

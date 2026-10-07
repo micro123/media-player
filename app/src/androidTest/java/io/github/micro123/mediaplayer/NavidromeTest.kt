@@ -77,6 +77,29 @@ class NavidromeTest {
         }
     }
 
+    @Test fun fullQueueReadsBeyondOnePageHandlesServerCapsSearchAndBadPagination() = runBlocking {
+        FixtureServer(songCount = 1203, pageCap = 100).use { server ->
+            val profile = profile(server.address)
+            try {
+                val root = NavidromeAddress.parse(profile.address)
+                val counts = mutableListOf<Int>()
+                val all = container.navidrome.collectSongs(root.at("songs", "100")) { counts += it }
+                assertEquals(1203, all.size)
+                assertEquals(root.at("song", "song-0"), all.first().uri)
+                assertEquals(root.at("song", "song-1202"), all.last().uri)
+                assertTrue(counts.zipWithNext().all { (a, b) -> a < b }); assertEquals(1203, counts.last())
+                val search = container.navidrome.collectSongs(root.at("search", "paged-search", "100"))
+                assertEquals(all.map { it.uri }, search.map { it.uri })
+                val playlist = container.navidrome.collectSongs(root.at("playlist", "playlist-1"))
+                assertEquals(listOf("曲目 A", "曲目 B", "曲目 A"), playlist.map { it.displayName })
+                server.repeatSongsPage = true
+                assertTrue(runCatching { container.navidrome.collectSongs(root.at("songs", "0")) }.isFailure)
+                server.repeatSongsPage = false; server.failSongsAt = 100
+                assertTrue(runCatching { container.navidrome.collectSongs(root.at("songs", "0")) }.isFailure)
+            } finally { remove(profile) }
+        }
+    }
+
     @Test fun authenticationErrorsRedirectsAndBoundsDoNotLeakCredentials() {
         FixtureServer().use { server ->
             val profile = profile(server.address)
@@ -156,6 +179,24 @@ class NavidromeTest {
                 await("first songs page") { player.remoteBrowser.value?.entries?.lastOrNull()?.name == "下一页" }
                 instrumentation.runOnMainSync { player.openRemoteEntry(player.remoteBrowser.value!!.entries.last()) }
                 await("second songs page") { player.remoteBrowser.value?.entries?.size == 2 && player.remoteBrowser.value?.entries?.firstOrNull()?.name == "上一页" }
+                server.queueSongCount = 1203
+                instrumentation.runOnMainSync { player.playRemoteAll() }
+                await("all songs loaded from a later visible page") { player.queue.value.items.size == 1203 && player.queue.value.index == 0 }
+                assertEquals(root.at("song", "song-0"), player.queue.value.items.first().uri)
+                server.blockCollection = true
+                instrumentation.runOnMainSync { player.playRemoteAll() }
+                assertTrue(server.collectionStarted.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                assertTrue(player.remoteBrowser.value!!.queueLoading)
+                instrumentation.runOnMainSync { player.cancelRemoteQueue() }
+                assertFalse(player.remoteBrowser.value!!.queueLoading)
+                server.blockCollection = false; server.releaseCollection.countDown()
+                kotlinx.coroutines.delay(250)
+                assertEquals(1203, player.queue.value.items.size)
+                server.failSongsAt = 100
+                instrumentation.runOnMainSync { player.playRemoteAll() }
+                await("partial failure leaves old complete queue") { player.remoteBrowser.value?.queueLoading == false }
+                assertEquals(1203, player.queue.value.items.size)
+                server.failSongsAt = -1
                 instrumentation.runOnMainSync { player.upRemote() }
                 await("page navigation returns to category root") { player.remoteBrowser.value?.current == root.address && player.remoteBrowser.value?.loading == false }
                 instrumentation.runOnMainSync { player.searchNavidrome("曲目 & + /") }
@@ -176,7 +217,7 @@ class NavidromeTest {
                 assertNotNull(container.network.credentials.read(bookmark.id))
                 instrumentation.runOnMainSync { player.showFileLocations(); player.openBookmark(bookmark) }
                 await("view bookmark reopens server playlist") { player.remoteBrowser.value?.current == bookmark.address && player.remoteBrowser.value?.entries?.size == 3 }
-                instrumentation.runOnMainSync { player.playRemotePage() }
+                instrumentation.runOnMainSync { player.playRemoteAll() }
                 await("play whole server playlist") { player.queue.value.items.size == 3 && player.queue.value.index == 0 }
                 instrumentation.runOnMainSync { engine.seekTo(12000); player.stopPlayback() }
                 await("progress saved by stable identity") { runBlocking { store.readBookmark(root.at("song", "song-a")) }?.positionMs == 12000L }
@@ -185,6 +226,7 @@ class NavidromeTest {
                 store.writeQueue(oldQueue); container.mediaRepository.writeRecent(oldRecent)
                 store.writeBookmark(root.at("song", "song-a"), 0, 0)
                 store.writeBookmark(root.at("song", "song-b"), 0, 0)
+                store.writeBookmark(root.at("song", "song-0"), 0, 0)
                 for (bookmark in container.bookmarks.items.value.filter { it.id == root.profileId || it.name == folderName }) {
                     container.bookmarks.remove(bookmark.id); container.network.credentials.remove(bookmark.id)
                 }
@@ -212,6 +254,12 @@ class NavidromeTest {
                 val tags = container.audioMetadata.read(media)
                 assertTrue(tags.title.isNotBlank()); assertTrue(tags.artist.isNotBlank()); assertNotNull(tags.cover)
                 assertTrue(nav.list(root.at("search", tags.title, "0")).any { it.media != null })
+                val all = nav.collectSongs(root.at("songs", "100"))
+                assertTrue(all.size > 100); assertEquals(all.size, all.map { it.uri }.toSet().size)
+                val scanned = NavidromeClient(profile).request("getScanStatus").optJSONObject("scanStatus")?.optInt("count", -1) ?: -1
+                if (scanned >= 0) assertEquals(scanned, all.size)
+                val matching = nav.collectSongs(root.at("search", tags.title, "100"))
+                assertTrue(matching.isNotEmpty())
                 playAndSeek(media)
             } finally { remove(profile) }
         } finally { file.delete() }
@@ -238,7 +286,13 @@ class NavidromeTest {
         assertTrue(label, condition())
     }
 
-    private inner class FixtureServer : AutoCloseable {
+    private inner class FixtureServer(private val songCount: Int = 101, private val pageCap: Int = 500) : AutoCloseable {
+        @Volatile var queueSongCount = songCount
+        @Volatile var failSongsAt = -1
+        @Volatile var repeatSongsPage = false
+        @Volatile var blockCollection = false
+        val collectionStarted = java.util.concurrent.CountDownLatch(1)
+        val releaseCollection = java.util.concurrent.CountDownLatch(1)
         private val socket = ServerSocket(0, 16, java.net.InetAddress.getByName("127.0.0.1"))
         private val workers = Executors.newFixedThreadPool(4)
         private val listener = Thread {
@@ -315,10 +369,20 @@ class NavidromeTest {
                             "getSong" -> response.put("song", song(params["id"]!!))
                             "search3" -> {
                                 correctSearch = params["query"] == "曲目 & + /"
-                                val offset = params["songOffset"]?.toInt() ?: 0
-                                response.put("searchResult3", JSONObject().put("song", JSONArray().apply {
-                                    if (params["query"].isNullOrEmpty()) for (index in offset until minOf(101, offset + 101)) put(song("song-$index"))
-                                    else put(song("song-a"))
+                                val requestedOffset = params["songOffset"]?.toInt() ?: 0
+                                if (params["songCount"] == "500" && blockCollection) {
+                                    collectionStarted.countDown()
+                                    releaseCollection.await(10, java.util.concurrent.TimeUnit.SECONDS)
+                                }
+                                val offset = if (repeatSongsPage) 0 else requestedOffset
+                                if (failSongsAt >= 0 && requestedOffset >= failSongsAt) {
+                                    response.put("status", "failed").put("error", JSONObject().put("code", 70))
+                                } else response.put("searchResult3", JSONObject().put("song", JSONArray().apply {
+                                    if (params["query"].isNullOrEmpty() || params["query"] == "paged-search") {
+                                        val count = minOf(pageCap, params["songCount"]?.toInt() ?: 20)
+                                        val total = if (params["songCount"] == "500") queueSongCount else songCount
+                                        for (index in offset until minOf(total, offset + count)) put(song("song-$index"))
+                                    } else if (offset == 0) put(song("song-a"))
                                 }))
                             }
                         }

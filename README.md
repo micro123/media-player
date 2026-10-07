@@ -1,4 +1,4 @@
-# Media Player · 本地播放器
+# 媒体播放器 · Media Player
 
 [![Android CI](https://github.com/micro123/media-player/actions/workflows/build.yml/badge.svg)](https://github.com/micro123/media-player/actions/workflows/build.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/micro123/media-player)](https://github.com/micro123/media-player/releases/latest)
@@ -42,9 +42,10 @@ Release 附件中的 `SHA256SUMS` 用于校验文件，`BUILD_INFO.json` 记录�
 | 文件浏览 | 共享存储与 SAF 文件夹；名称/大小/类型升降序，文件夹置顶；点击搜索图标展开搜索 |
 | Navidrome | 专辑、歌手、全部歌曲、服务器播放列表；服务器搜索与分页；原始音频播放、封面及曲目信息；加密账号与位置收藏 |
 | 网络位置 | SMB 2/3、NFS v3/TCP 只读浏览和按需播放；HTTP/HTTPS 地址；认证加密保存、位置与目录书签 |
-| 播放列表 | 持久队列、播放全部、上一项/下一项、自动下一项、顺序调整、M3U 导入/导出 |
+| 播放列表 | 持久队列、播放全部、上一项/下一项、自动下一项、拖拽把手排序、封面 / 缩略图预览及媒体信息、M3U 导入/导出 |
 | 视频 | 全屏播放，默认横屏，可配置竖屏或保持；原始/4:3/16:9 比例；主动进入系统画中画 |
-| 音乐 | 独立封面与 ID3 信息界面，适配竖屏和横屏；应用内迷你播放器 |
+| 音乐 | 独立封面与 ID3 信息界面，适配竖屏和横屏；迷你播放器、后台播放、系统媒体通知与锁屏控制 |
+| 关于 | 设置页底部显示应用版本、播放内核、开源许可和代码仓库入口 |
 | 倍速 | 0.1～5.0，滑块与快捷档位、可记住全局倍速；长按临时使用当前速度的 2 倍，最高 5.0 |
 | 观看进度 | 自动保存和续播；可配置 OP/ED 快速跳过，默认 85 秒 |
 | 手势 | 单击显隐控制，横屏左右双击 ±10 秒，中间双击播放/暂停；亮度、音量、可取消进度拖动 |
@@ -53,9 +54,9 @@ Release 附件中的 `SHA256SUMS` 用于校验文件，`BUILD_INFO.json` 记录�
 | 外部打开 | 支持文件管理器「打开方式」播放音视频，使用发送方提供的单文件读取授权 |
 
 视频退出播放界面或普通 Home 离开时保存进度并停止；主动进入画中画才继续小窗播放。
-音乐可以在应用内返回浏览并继续播放，离开应用时暂停。
+音乐返回浏览、切换应用、锁屏或关闭播放页面后会继续播放；移除最近任务也会继续。系统媒体通知显示封面、曲名、歌手 / 专辑和播放状态，提供播放 / 暂停、上一首 / 下一首与进度控制；点击通知返回音乐界面。点击播放器的停止按钮或结束媒体通知会停止音乐并移除通知。
 
-目前没有独立后台音频服务、媒体通知、字幕/音轨选择或系统画中画以外的悬浮窗。
+目前没有字幕/音轨选择或系统画中画以外的悬浮窗。系统强行停止应用后不会自动恢复播放。
 网络视频支持跳转时间预览；缩略帧预览目前仅支持本地文件。
 NFS 当前支持 v3/TCP，SMB 当前不使用 Kerberos；网络源按需读取，不预先下载完整媒体文件。
 
@@ -120,6 +121,21 @@ THIRD_PARTY_NOTICES.md          原生及网络依赖来源与许可声明
 
 来源注册表、目录浏览和播放输入解析相互独立。本地 content/file、HTTP、SMB 与 NFS 均使用稳定地址保存队列和观看进度；网络代理文件描述符支持随机读取和跳转。
 
+## 播放列表预览与排序
+
+列表页与播放界面中的列表共用拖拽把手，拖动至边缘会自动滚动。当前播放项单独标记，排序不会切换播放中的曲目。
+音乐项显示封面、歌手 / 专辑、时长、格式、码率和大小；本地视频项显示缩略图、时长、格式、分辨率和大小。
+设置页底部的「关于」提供当前版本、播放内核、GPL-3.0 许可和 GitHub 代码仓库入口。
+
+<p>
+  <img src="docs/screenshots/playlist-preview-0.14.png" width="260" alt="播放列表预览、媒体信息与专用拖拽把手" />
+  <img src="docs/screenshots/about-0.14.png" width="260" alt="设置页底部的关于和代码仓库信息" />
+</p>
+没有封面或无法读取信息时保留类型图标，未知字段不显示；普通 HTTP 直播和 SMB/NFS 视频当前不额外下载缩略图。
+
+预览只为可见项目按需读取，最多两个并发读取任务；内存缓存上限 8 MiB，磁盘缓存上限 64 MiB / 400 项，7 天后过期。
+磁盘缓存位于应用缓存目录，可从 Android 应用设置清除缓存，清除不会删除媒体、书签或服务器配置。
+
 ## Navidrome 音乐服务器
 
 在「文件 → 添加网络位置」中选择 **Navidrome**，填写服务器首页地址、用户名和密码，点击「保存并连接」。
@@ -127,7 +143,9 @@ THIRD_PARTY_NOTICES.md          原生及网络依赖来源与许可声明
 服务器支持 Subsonic 1.16.1 / OpenSubsonic 接口，不要求开启 Navidrome 原生管理 API。
 
 入口提供专辑、歌手、全部歌曲与服务器播放列表，搜索图标可搜索整个服务器的歌曲、专辑和歌手。
-专辑、全部歌曲与搜索结果分页浏览；专辑和服务器播放列表保留曲目顺序，可点击「播放全部」，歌曲页则播放当前页。
+专辑、全部歌曲与搜索结果分页浏览；「播放全部歌曲」会自动收集所有页面，从第一首建立完整队列，不受当前浏览页限制。
+搜索结果的「播放全部歌曲」仅播放匹配歌曲；专辑和服务器播放列表保留原有曲目顺序与重复曲目。
+收集时显示已读取数量，可取消；取消、网络失败或分页异常会保留原队列。此操作只读取曲目元数据，不下载完整音乐文件。
 音乐界面显示服务器提供的封面、歌手、专辑、年份、流派和曲目信息，播放使用原始音频并支持进度跳转与倍速。
 浏览位置可收藏，队列可保存为播放列表书签或导出 M3U。
 
@@ -150,7 +168,7 @@ THIRD_PARTY_NOTICES.md          原生及网络依赖来源与许可声明
 应用源码可从每个 [Release](https://github.com/micro123/media-player/releases) 的 **Source code (zip / tar.gz)** 下载，或检出与安装包匹配的版本标签：
 
 ```sh
-git clone --branch v0.13.0 https://github.com/micro123/media-player.git
+git clone --branch v0.14.0 https://github.com/micro123/media-player.git
 cd media-player
 ./gradlew :app:assembleDebug
 ```
@@ -171,6 +189,7 @@ cd libmpv-android/buildscripts
 原生构建的环境要求和 AAR 构建步骤见 [上游构建说明](https://github.com/jarnedemeulemeester/libmpv-android/blob/v1.0.0/buildscripts/README.md)，完整组件列表见 [第三方声明](THIRD_PARTY_NOTICES.md)。
 日常 APK 构建使用预编译 AAR，GitHub Actions 不下载或重新编译这些原生源码。
 
+- [0.14.0 播放列表与完整歌曲播放](docs/releases/0.14.0.md)
 - [0.13.0 Navidrome 支持](docs/releases/0.13.0.md)
 - [0.12.0 发布说明](docs/releases/0.12.0.md)
 - [0.12.1 架构分包说明](docs/releases/0.12.1.md)

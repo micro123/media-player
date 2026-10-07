@@ -93,7 +93,7 @@ jobs:
             echo 'This tag already has a release; refusing to replace published assets.' >&2
             exit 1
           fi
-          args=(--verify-tag --title "Media Player $RELEASE_TAG" --generate-notes --notes-file release/RELEASE_NOTES.md)
+          args=(--verify-tag --title "媒体播放器 $RELEASE_TAG" --generate-notes --notes-file release/RELEASE_NOTES.md)
           if [[ "$PRERELEASE" == 'true' ]]; then
             args+=(--prerelease)
           fi
