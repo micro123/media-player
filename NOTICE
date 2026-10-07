@@ -1,0 +1,9 @@
+Media Player
+Copyright (C) 2026 micro123
+
+The original application source in this repository is licensed under the
+GNU General Public License, version 3 (SPDX-License-Identifier: GPL-3.0-only).
+See LICENSE for the full terms.
+
+Third-party components retain their own copyright notices and license terms.
+See THIRD_PARTY_NOTICES.md and app/src/main/assets/licenses/.

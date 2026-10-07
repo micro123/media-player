@@ -38,6 +38,8 @@ jobs:
           ./gradlew :app:testDebugUnitTest :app:lintDebug
           --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
           --no-configuration-cache --console=plain --no-daemon
+      - name: Package corresponding native sources
+        run: bash tools/ci/package-native-source.sh
       - name: Restore release signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -100,4 +102,4 @@ jobs:
           if [[ "$DRAFT_RELEASE" == 'true' ]]; then
             args+=(--draft)
           fi
-          gh release create "$RELEASE_TAG" release/*.apk release/SHA256SUMS release/*-mapping.zip release/BUILD_INFO.json "${args[@]}"
+          gh release create "$RELEASE_TAG" release/*.apk release/SHA256SUMS release/*-mapping.zip release/*-source.tar.gz release/BUILD_INFO.json "${args[@]}"

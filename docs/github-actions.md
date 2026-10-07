@@ -73,8 +73,11 @@ git push origin v0.13.0
 - `SHA256SUMS`
 - `BUILD_INFO.json`
 - `media-player-版本号-mapping.zip`
+- `media-player-版本号-source.tar.gz`：该标签的应用源码
+- `libmpv-android-1.0.0-source.tar.gz`：包装层、固定版本原生依赖源码、补丁与构建脚本
 
 R8 映射用于反混淆崩溃日志；GitHub 同时提供对应标签的源码压缩包。
+项目采用 GPL-3.0-only；原生源码归档在读取签名 Secrets 前生成，缺少源码归档时不会发布 APK。
 libmpv 等原生依赖的版本、对应源码和构建入口见 `THIRD_PARTY_NOTICES.md`。
 
 ## 重试与查看结果

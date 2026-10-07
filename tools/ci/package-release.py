@@ -21,6 +21,14 @@ def run(*command: str) -> str:
     return subprocess.run(command, text=True, stdout=subprocess.PIPE, check=True).stdout
 
 
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def main() -> None:
     name, code = metadata.version()
     sdk = os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT')
@@ -61,15 +69,22 @@ def main() -> None:
     with zipfile.ZipFile(target / f'media-player-{name}-mapping.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
         for entry in sorted(mapping.glob('*.txt')):
             archive.write(entry, entry.name)
+    subprocess.run(['git', '-C', str(ROOT), 'archive', '--format=tar.gz',
+                    f'--prefix=media-player-{name}/',
+                    f'--output={target / f"media-player-{name}-source.tar.gz"}', 'HEAD'], check=True)
+    native_source = ROOT / 'build/libmpv-android-1.0.0-source.tar.gz'
+    if not native_source.is_file():
+        raise SystemExit('Missing native source archive; run bash tools/ci/package-native-source.sh first.')
+    shutil.copyfile(native_source, target / native_source.name)
     info = {
         'application_id': metadata.APPLICATION_ID, 'version_name': name, 'version_code': code,
         'git_commit': run('git', '-C', str(ROOT), 'rev-parse', 'HEAD').strip(),
         'signing_certificate_sha256': expected,
         'github_run_id': os.environ.get('GITHUB_RUN_ID'),
-        'apk_sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
+        'apk_sha256': file_sha256(apk),
     }
     (target / 'BUILD_INFO.json').write_text(json.dumps(info, indent=2) + '\n')
-    sums = ''.join(f'{hashlib.sha256(entry.read_bytes()).hexdigest()}  {entry.name}\n'
+    sums = ''.join(f'{file_sha256(entry)}  {entry.name}\n'
                    for entry in sorted(target.iterdir()) if entry.is_file())
     (target / 'SHA256SUMS').write_text(sums)
     notes = ROOT / f'docs/releases/{name}.md'

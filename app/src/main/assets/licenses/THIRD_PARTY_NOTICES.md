@@ -55,5 +55,9 @@ GPL v2 和 v3 原文已经放入应用 assets/licenses，分别取自 mpv v0.41.
 - 构建步骤：该标签的 `buildscripts/README.md`，先下载依赖，再按脚本构建各 ABI。
 - 该 AAR 提供 arm64-v8a、armeabi-v7a、x86 和 x86_64。
 
-当前阶段的产物用于本地开发和设备测试。对外分发前，应根据实际产物准备对应源码、构建材料、
-所有组件的完整声明与应用自身的发布许可证；此文件是依赖来源记录，尚不是完整的分发材料清单。
+0.12.0 起应用原创源码采用 GPL-3.0-only，完整条款见仓库 LICENSE。
+Release 同时提供对应提交的应用源码归档，以及 libmpv-android v1.0.0 的包装层、原生构建脚本、补丁和固定版本依赖源码归档。
+源码收集脚本为 tools/ci/package-native-source.sh；原生归档保留上游 patch.sh 所需的 Git 元数据。
+仅将上游 Lua 下载地址改为 HTTPS，其他依赖版本、源码和构建配置按上游 v1.0.0 保留。
+原生重建步骤为 buildscripts/download.sh、patch.sh、build.sh，详见原生归档中的 buildscripts/README.md。
+应用内 assets/licenses 包含项目许可、JNI 包装层 MIT、GPL v2/v3 与网络依赖声明；各原生源码树保留组件自身的许可文件。

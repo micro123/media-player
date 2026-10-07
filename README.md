@@ -4,6 +4,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/micro123/media-player)](https://github.com/micro123/media-player/releases/latest)
 ![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3.10-7F52FF?logo=kotlin&logoColor=white)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 
 基于 **libmpv** 的 Android 音视频播放器，使用 Kotlin、Jetpack Compose 和 Material 3。
 支持安卓媒体库、本地文件、SMB/NFS 网络目录、M3U 播放列表与书签，为视频和音乐提供独立播放界面。
@@ -20,7 +21,7 @@ A libmpv-powered Android media player with local browsing, SMB/NFS, playlists an
 0.12.0 开始使用新的应用 ID，可与此前的 `com.tang.player` 测试版并存。旧版设置、书签和观看进度不会自动迁移。
 日常开发提交生成的调试 APK 可在 [Actions](https://github.com/micro123/media-player/actions/workflows/build.yml) 对应任务的 Artifacts 中获取；调试版与正式版签名不同，不能互相直接覆盖安装。
 
-Release 附件中的 `SHA256SUMS` 用于校验文件，`BUILD_INFO.json` 记录版本、提交和签名证书指纹；映射 ZIP 用于排查崩溃，普通使用只需下载 APK。
+Release 附件中的 `SHA256SUMS` 用于校验文件，`BUILD_INFO.json` 记录版本、提交和签名证书指纹；映射 ZIP 用于排查崩溃，源码归档用于查看和重建。普通使用只需下载 APK。
 
 ## 功能
 
@@ -113,6 +114,8 @@ THIRD_PARTY_NOTICES.md          原生及网络依赖来源与许可声明
 设备测试使用自建音视频、独立网络服务器和测试文件管理器，不依赖真实 NAS 账号或用户媒体。
 
 ## 文档与第三方依赖
+
+项目原创源码采用 **GPL-3.0-only**，完整条款见 [LICENSE](LICENSE)。第三方组件保留各自的许可证和版权声明。
 
 - [0.12.0 发布说明](docs/releases/0.12.0.md)
 - [文件排序、区间录制与可取消跳转预览](docs/browsing-and-gestures-0.11.md)
