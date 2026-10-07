@@ -54,7 +54,12 @@ class PlayerViewModel(
     private val clips: ClipExporter,
     private val network: NetworkRepository? = null,
     private val audioMetadataRepository: AudioMetadataRepository? = null,
+    private val videoPreviewRepository: VideoPreviewRepository? = null,
 ) : ViewModel() {
+    private val mutableSeekPreview = MutableStateFlow<VideoSeekPreview?>(null)
+    val seekPreview = mutableSeekPreview.asStateFlow()
+    private val mutableSeekThumbnail = MutableStateFlow<android.graphics.Bitmap?>(null)
+    val seekThumbnail = mutableSeekThumbnail.asStateFlow()
     private val mutableAudioMetadata = MutableStateFlow(AudioMetadata())
     val audioMetadata = mutableAudioMetadata.asStateFlow()
     private val mutableRemoteBrowser = MutableStateFlow<RemoteBrowserState?>(null)
@@ -97,6 +102,24 @@ class PlayerViewModel(
     private var bookmarkUri: String? = null
 
     init {
+        viewModelScope.launch {
+            // Sequential + conflated: a drag never spawns concurrent decoders for stale positions.
+            seekPreview.map { it?.takeUnless { value -> value.cancelled }?.let { value -> value.mediaUri to value.targetPositionMs / 1000 } }
+                .distinctUntilChanged().collect { request ->
+                    mutableSeekThumbnail.value = null
+                    if (request != null) {
+                        kotlinx.coroutines.delay(100)
+                        val current = seekPreview.value
+                        val media = playback.value.media
+                        if (current != null && !current.cancelled && media?.uri == current.mediaUri) {
+                            val frame = videoPreviewRepository?.read(media, current.targetPositionMs)
+                            val latest = seekPreview.value
+                            if (latest?.mediaUri == current.mediaUri && !latest.cancelled && latest.targetPositionMs / 1000 == current.targetPositionMs / 1000)
+                                mutableSeekThumbnail.value = frame
+                        }
+                    }
+                }
+        }
         viewModelScope.launch {
             playback.map { it.media?.takeUnless { media -> media.isVideo } }.distinctUntilChangedBy { it?.uri }.collectLatest { media ->
                 mutableAudioMetadata.value = if (media == null) AudioMetadata() else AudioMetadata(uri = media.uri, title = media.displayName, loading = true)
@@ -173,6 +196,7 @@ class PlayerViewModel(
 
     fun stopPlayback() {
         val snapshot = playback.value
+        clearSeekPreview()
         externalOpenJob?.cancel()
         loadJob?.cancel()
         setSpeedBoost(false)
@@ -311,6 +335,7 @@ class PlayerViewModel(
 
     private fun startPlayback(items: List<MediaItem>, index: Int, showPlayer: Boolean = true, explicitPosition: Long? = null, external: Boolean = false) {
         val selected = items.getOrNull(index) ?: return
+        clearSeekPreview()
         val oldState = playback.value
         setSpeedBoost(false)
         loadJob?.cancel()
@@ -431,7 +456,9 @@ class PlayerViewModel(
         val state = remoteBrowser.value ?: return
         if (entry.directory) { browseRemote(entry.address, state.root); return }
         if (entry.name.endsWith(".m3u", true) || entry.name.endsWith(".m3u8", true)) { importPlaylist(entry.address); return }
-        val items = state.entries.filter { !it.directory && !it.name.endsWith(".m3u", true) && !it.name.endsWith(".m3u8", true) }.mapNotNull { it.media }
+        val ordered = sortBrowseItems(state.entries, preferences.value.fileSort, preferences.value.fileSortDescending,
+            { it.name }, { it.directory }, { it.media?.sizeBytes })
+        val items = ordered.filter { !it.directory && !it.name.endsWith(".m3u", true) && !it.name.endsWith(".m3u8", true) }.mapNotNull { it.media }
         val index = items.indexOfFirst { it.uri == entry.address }
         if (index >= 0) playList(items, index)
     }
@@ -645,6 +672,28 @@ class PlayerViewModel(
         if (playback.value.status == PlaybackStatus.PLAYING) pause() else engine.play()
     }
     fun pause() { setSpeedBoost(false); engine.pause() }
+    fun setFileSort(sort: BrowseSort, descending: Boolean) {
+        mutablePreferences.update { it.copy(fileSort = sort, fileSortDescending = descending) }
+    }
+    fun beginSeekPreview() {
+        val state = playback.value
+        val media = state.media ?: return
+        if (seekPreview.value != null || !media.isVideo || !state.canControl || !state.seekable || state.durationMs <= 0) return
+        setSpeedBoost(false)
+        mutableSeekPreview.value = VideoSeekPreview(media.uri, state.positionMs, state.positionMs, state.status == PlaybackStatus.PLAYING)
+        if (state.status == PlaybackStatus.PLAYING) engine.pause()
+    }
+    fun updateSeekPreview(positionMs: Long, cancelled: Boolean) {
+        mutableSeekPreview.update { it?.copy(targetPositionMs = positionMs.coerceIn(0, playback.value.durationMs.coerceAtLeast(0)), cancelled = cancelled) }
+    }
+    fun finishSeekPreview(commit: Boolean) {
+        val preview = seekPreview.value ?: return
+        clearSeekPreview()
+        if (playback.value.media?.uri != preview.mediaUri || !playback.value.canControl) return
+        if (commit && !preview.cancelled) seekTo(preview.targetPositionMs)
+        if (preview.wasPlaying) engine.play()
+    }
+    private fun clearSeekPreview() { mutableSeekPreview.value = null; mutableSeekThumbnail.value = null }
     fun retry() { if (queue.value.index >= 0) playIndex(queue.value.index) }
     fun attachSurface(surface: android.view.Surface?) = engine.attachSurface(surface)
     fun updateSurfaceSize(width: Int, height: Int) = engine.updateSurfaceSize(width, height)

@@ -30,7 +30,7 @@ git config --get user.name
 git config --get user.email
 ```
 
-当前自动化会话的 .git 目录是空的只读目录，因此这份说明及规则已经准备好，但会话内没有建立仓库、提交或标签。需要在允许写入 .git 的本机终端或会话中执行初始化；不要删除一个已有历史的 .git 目录。
+本项目已在 2026-10-07 初始化 main 分支，以 20f2121 提交建立 0.10.0 基线，并添加 v0.10.0 标签。现有仓库无需重新初始化，也不要删除已有历史的 .git 目录。
 
 ## 提交哪些文件
 
@@ -128,7 +128,9 @@ git push -u origin main
 git push origin v0.10.0
 ```
 
-日常提交后使用 git push 同步；git commit 只保存本地历史。远端仓库的可见性应按项目分享需求选择。本次没有创建远端仓库或上传代码。
+本项目已配置 origin 为 git@github.com:micro123/media-player.git，无需再次执行 git remote add。
+本机 GitHub SSH 连接使用 ssh.github.com:443；主机密钥已与 GitHub 官方 Ed25519 指纹核对，公开密钥保存在本仓库 .git/github-known-hosts，通过仓库级 core.sshCommand 指定。未修改全局 SSH 配置；该配置不随源码提交。
+日常提交后使用 git push 同步；git commit 只保存本地历史。远端仓库的可见性应按项目分享需求选择。当前尚未推送代码。
 
 ## Android Studio
 

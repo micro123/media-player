@@ -16,6 +16,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
@@ -43,8 +44,10 @@ fun VideoPlayerScreen(state: PlaybackState, queue: PlaylistState, aspect: VideoA
     onBoost: (Boolean) -> Unit, onRotate: () -> Unit, onPip: () -> Unit, onSpeed: () -> Unit,
     onAspect: () -> Unit, onQueue: () -> Unit, onPrevious: () -> Unit, onNext: () -> Unit,
     onResume: () -> Unit, onRetry: () -> Unit, skipSeconds: Int, onSkip: () -> Unit,
-    onBack: () -> Unit, onSettings: () -> Unit, onSpeedReset: () -> Unit, modifier: Modifier = Modifier,
-    onBookmark: () -> Unit = {}, onClip: () -> Unit = {}, clipStartMs: Long? = null) {
+    onBack: () -> Unit, onSettings: () -> Unit, modifier: Modifier = Modifier,
+    onClip: () -> Unit = {}, clipStartMs: Long? = null, clipEndMs: Long? = null,
+    seekPreview: com.tang.player.ui.VideoSeekPreview? = null, seekThumbnail: android.graphics.Bitmap? = null,
+    onSeekBegin: () -> Unit = {}, onSeekUpdate: (Long, Boolean) -> Unit = { _, _ -> }, onSeekFinish: (Boolean) -> Unit = {}) {
     val activity = LocalActivity.current as? MainActivity
     val configuration = LocalConfiguration.current
     val keptOrientation = remember(activity, orientation) {
@@ -59,10 +62,14 @@ fun VideoPlayerScreen(state: PlaybackState, queue: PlaylistState, aspect: VideoA
     var interaction by remember { mutableIntStateOf(0) }
     var menuOpen by remember(state.media?.uri) { mutableStateOf(false) }
     var hint by remember { mutableStateOf<String?>(null) }
+    val currentFinish by rememberUpdatedState(onSeekFinish)
+    DisposableEffect(state.media?.uri) { onDispose { currentFinish(false) } }
+    LaunchedEffect(hint) { if (hint != null) { delay(1200); hint = null } }
     val interact: () -> Unit = { controlsVisible = true; interaction++ }
     val unlock = { locked = false; lockNotice = false; interact() }
     BackHandler(enabled = locked && !inPip) { unlock() }
-    LaunchedEffect(inPip) { if (inPip) { locked = false; lockNotice = false } }
+    BackHandler(enabled = seekPreview != null && !inPip) { onSeekFinish(false) }
+    LaunchedEffect(inPip) { if (inPip) { onSeekFinish(false); locked = false; lockNotice = false } }
     LaunchedEffect(lockNotice) { if (lockNotice) { delay(1800); lockNotice = false } }
     DisposableEffect(activity) {
         val previousOrientation = activity?.requestedOrientation
@@ -98,6 +105,7 @@ fun VideoPlayerScreen(state: PlaybackState, queue: PlaylistState, aspect: VideoA
     BoxWithConstraints(modifier.fillMaxSize().background(Color.Black)) {
         val wide = maxWidth >= 600.dp
         val portrait = maxHeight > maxWidth
+        val cancelBoundary = with(LocalDensity.current) { maxHeight.toPx() * .18f }
         val surfaceWidth = if (maxWidth / maxHeight > displayAspect.toFloat()) maxHeight * displayAspect.toFloat() else maxWidth
         val surfaceHeight = surfaceWidth / displayAspect.toFloat()
         VideoSurface(onSurface, onSize, Modifier.width(surfaceWidth).height(surfaceHeight).align(Alignment.Center)
@@ -108,18 +116,19 @@ fun VideoPlayerScreen(state: PlaybackState, queue: PlaylistState, aspect: VideoA
         if (!inPip) {
             VideoGestures(state, onToggle, {
                 if (locked) lockNotice = true else { controlsVisible = !controlsVisible; interaction++ }
-            }, onSeek, onBoost, { hint = it }, Modifier.matchParentSize(), enabled = !locked)
+            }, onSeek, onBoost, { hint = it }, Modifier.matchParentSize(), enabled = !locked,
+                landscape = !portrait, onSeekBegin = { onSeekBegin(); interact() }, onSeekUpdate = onSeekUpdate, onSeekFinish = onSeekFinish)
 
-            val showControls = !locked && (controlsVisible || state.status == PlaybackStatus.ERROR)
+            val showControls = !locked && (controlsVisible || seekPreview != null || state.status == PlaybackStatus.ERROR)
             AnimatedVisibility(showControls, Modifier.align(Alignment.TopCenter), enter = fadeIn(), exit = fadeOut()) {
                 Box(Modifier.fillMaxWidth().heightIn(min = if (wide) 124.dp else 144.dp)
                     .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.84f), Color.Transparent)))) {
                     VideoTopBar(state.media?.displayName.orEmpty(), queue, !wide, skipSeconds, state.canControl && state.seekable,
                         { onBack(); interact() }, { onSkip(); interact() }, { onSettings(); interact() },
-                        { onSpeedReset(); interact() }, onPrevious, onSeek, resumePosition, onResume,
+                        onPrevious, onSeek,
                         Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                             .padding(horizontal = if (wide) 16.dp else 4.dp, vertical = 12.dp),
-                        onMenuVisibility = { menuOpen = it; interact() }, onBookmark = onBookmark, onClip = onClip)
+                        onMenuVisibility = { menuOpen = it; interact() }, onClip = { onClip(); interact() }, recording = clipStartMs != null && clipEndMs == null)
                 }
             }
             AnimatedVisibility(showControls, Modifier.align(Alignment.BottomCenter), enter = fadeIn(), exit = fadeOut()) {
@@ -128,24 +137,31 @@ fun VideoPlayerScreen(state: PlaybackState, queue: PlaylistState, aspect: VideoA
                         onToggle, onSeek, onPrevious, onNext, onQueue, onAspect, onSpeed, onRotate,
                         onResume, interact,
                         Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                            .padding(start = if (wide) 22.dp else 16.dp, end = if (wide) 22.dp else 16.dp, top = 26.dp, bottom = 8.dp))
+                            .padding(start = if (wide) 22.dp else 16.dp, end = if (wide) 22.dp else 16.dp, top = 26.dp, bottom = 8.dp),
+                        seekPreview, seekThumbnail, onSeekBegin, onSeekUpdate, onSeekFinish, cancelBoundary)
                 }
             }
             AnimatedVisibility(showControls || locked, Modifier.align(Alignment.CenterEnd), enter = fadeIn(), exit = fadeOut()) {
                 VideoSideActions(locked, state.canControl, {
                     onBoost(false)
+                    onSeekFinish(false)
                     hint = null
                     if (locked) unlock() else { locked = true; controlsVisible = false; lockNotice = true }
-                }, { onPip(); interact() },
+                }, { onSeekFinish(false); onPip(); interact() },
                     Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).padding(end = if (wide) 24.dp else 16.dp))
             }
-            if (clipStartMs != null) TextButton(onClick = { onClip(); interact() },
+            if (clipStartMs != null && clipEndMs == null) TextButton(onClick = { onClip(); interact() },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = if (wide) 94.dp else 116.dp),
                 colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFFF8A80))) {
-                Text("● 区间起点 ${formatTime(clipStartMs)} · 标记终点")
+                Text("● 录制中 ${formatTime((state.positionMs - clipStartMs).coerceAtLeast(0))} · 点击结束")
             }
-            if (boosting || hint != null || lockNotice) Surface(Modifier.align(Alignment.Center),
-                color = Color(0xE6222029), shape = RoundedCornerShape(16.dp)) {
+            if (seekPreview != null) Box(Modifier.fillMaxWidth().fillMaxHeight(.18f)
+                .background(if (seekPreview.cancelled) Color(0xCCAA3333) else Color(0x88443355))) {
+                Text(if (seekPreview.cancelled) "松手取消跳转" else "滑到此区域取消跳转", color = Color.White,
+                    modifier = Modifier.align(Alignment.Center))
+            }
+            if (boosting || hint != null || lockNotice) Box(Modifier.align(Alignment.Center)
+                .background(Color(0xE6222029), RoundedCornerShape(16.dp))) {
                 Column(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(when { boosting -> "${speedLabel(boostedSpeed(baseSpeed))} 加速播放"; lockNotice -> "控制已锁定"; else -> hint.orEmpty() },

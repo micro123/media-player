@@ -19,6 +19,11 @@ import androidx.compose.ui.unit.dp
 import com.tang.player.core.MediaItem
 import com.tang.player.data.FolderEntry
 import com.tang.player.data.LibraryMediaEntry
+import com.tang.player.data.BrowseSort
+import com.tang.player.data.sortBrowseItems
+import com.tang.player.ui.components.SearchButton
+import com.tang.player.ui.components.BrowserSearchField
+import com.tang.player.ui.components.BrowseSortButton
 import com.tang.player.ui.LibrarySource
 import com.tang.player.ui.LibraryState
 import com.tang.player.ui.components.PlayerIcon
@@ -30,9 +35,11 @@ fun LibraryScreen(state: LibraryState, onOpenFile: () -> Unit, onSelect: (List<M
     onEnterFolder: (FolderEntry) -> Unit, onUp: () -> Unit, onRefresh: () -> Unit,
     onAddFiles: () -> Unit, onQueue: () -> Unit, groupMedia: Boolean, onGroupMedia: (Boolean) -> Unit,
     modifier: Modifier = Modifier, onNetwork: () -> Unit = {}, onImportPlaylist: () -> Unit = {}, onBookmarks: () -> Unit = {},
-    onFileRoot: () -> Unit = {}, onSaveFolder: () -> Unit = {}) {
+    onFileRoot: () -> Unit = {}, onSaveFolder: () -> Unit = {}, fileSort: BrowseSort = BrowseSort.NAME,
+    fileSortDescending: Boolean = false, onFileSort: (BrowseSort, Boolean) -> Unit = { _, _ -> }) {
     var filter by rememberSaveable { mutableIntStateOf(0) }
     var search by rememberSaveable(state.source) { mutableStateOf("") }
+    var searchOpen by rememberSaveable(state.source) { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     var selectedSeriesKey by rememberSaveable { mutableStateOf<String?>(null) }
     val rootScroll = rememberLazyListState()
@@ -47,15 +54,18 @@ fun LibraryScreen(state: LibraryState, onOpenFile: () -> Unit, onSelect: (List<M
         if (!state.isLoading && selectedSeriesKey != null && selectedSeries == null) selectedSeriesKey = null
     }
     BackHandler(enabled = selectedSeries != null) { selectedSeriesKey = null }
+    BackHandler(enabled = searchOpen && selectedSeries == null) { searchOpen = false; search = "" }
     if (selectedSeries != null) {
         SeriesDetail(selectedSeries, state.isLoading, { selectedSeriesKey = null }, onSelect, modifier)
         return
     }
-    val sourceItems = when (state.source) {
+    val sourceItemsUnsorted = when (state.source) {
         LibrarySource.MEDIA_STORE -> state.media
         LibrarySource.FOLDER -> state.entries.mapNotNull { it.media }
         LibrarySource.RECENT -> state.recent
     }
+    val sourceItems = if (folderMode) sortBrowseItems(sourceItemsUnsorted, fileSort, fileSortDescending,
+        { it.displayName }, { false }, { it.sizeBytes }) else sourceItemsUnsorted
     val visible = sourceItems.filter { (filter == 0 || (filter == 1 && it.isVideo) || (filter == 2 && !it.isVideo)) &&
         (search.isBlank() || it.displayName.contains(search.trim(), ignoreCase = true)) }
     val groupedVisible = if (grouping) state.mediaEntries.filter { entry ->
@@ -70,6 +80,8 @@ fun LibraryScreen(state: LibraryState, onOpenFile: () -> Unit, onSelect: (List<M
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (folderMode) "文件夹" else "媒体库", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                    SearchButton(searchOpen) { searchOpen = !searchOpen; if (!searchOpen) search = "" }
+                    if (folderMode) BrowseSortButton(fileSort, fileSortDescending, onFileSort)
                     TextButton(onClick = onOpenFile) { Text("打开文件") }
                     Box {
                         IconButton(onClick = { more = true }) { PlayerSymbol(PlayerIcon.MORE, description = "浏览选项") }
@@ -115,8 +127,7 @@ fun LibraryScreen(state: LibraryState, onOpenFile: () -> Unit, onSelect: (List<M
                         PlayerSymbol(PlayerIcon.BACK, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("返回上级文件夹")
                     }
                 }
-                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(if (folderMode) "搜索当前文件夹中的音视频" else "搜索文件名") }, singleLine = true)
+                if (searchOpen) BrowserSearchField(search, { search = it }, if (folderMode) "搜索当前文件夹中的音视频" else "搜索文件名")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("全部", "视频", "音频").forEachIndexed { index, label ->
                         FilterChip(selected = filter == index, onClick = { filter = index }, label = { Text(label) })
@@ -135,7 +146,8 @@ fun LibraryScreen(state: LibraryState, onOpenFile: () -> Unit, onSelect: (List<M
             }
         }
         if (state.source == LibrarySource.FOLDER) {
-            items(state.entries.filter { it.isDirectory }, key = { it.uri }) { folder ->
+            items(sortBrowseItems(state.entries.filter { it.isDirectory && (search.isBlank() || it.name.contains(search.trim(), true)) },
+                fileSort, fileSortDescending, { it.name }, { true }, { null }), key = { it.uri }) { folder ->
                 Card(onClick = { onEnterFolder(folder) }, modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         PlayerSymbol(PlayerIcon.FOLDER)
@@ -153,7 +165,7 @@ fun LibraryScreen(state: LibraryState, onOpenFile: () -> Unit, onSelect: (List<M
         } else items(visible, key = { it.uri }) { media ->
             MediaRow(media, !state.isLoading) { onSelect(visible, visible.indexOf(media)) }
         }
-        if (playable.isEmpty() && !state.isLoading) item {
+        if (playable.isEmpty() && !state.isLoading && (!folderMode || state.entries.none { it.isDirectory && (search.isBlank() || it.name.contains(search.trim(), true)) })) item {
             Text(when {
                 search.isNotBlank() -> "没有匹配的音视频文件。"
                 state.source == LibrarySource.FOLDER && state.folderPath.isEmpty() -> "选择一个文件夹后，可逐级浏览音视频文件。"
@@ -184,6 +196,8 @@ private fun SeriesRow(series: LibraryMediaEntry.Series, enabled: Boolean, onClic
 private fun SeriesDetail(series: LibraryMediaEntry.Series, loading: Boolean, onBack: () -> Unit,
     onSelect: (List<MediaItem>, Int) -> Unit, modifier: Modifier) {
     var search by rememberSaveable(series.key) { mutableStateOf("") }
+    var searchOpen by rememberSaveable(series.key) { mutableStateOf(false) }
+    BackHandler(enabled = searchOpen) { searchOpen = false; search = "" }
     val visible = series.items.filter { search.isBlank() || it.displayName.contains(search.trim(), ignoreCase = true) }
     LazyColumn(modifier.fillMaxSize(), state = rememberLazyListState(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -191,13 +205,13 @@ private fun SeriesDetail(series: LibraryMediaEntry.Series, loading: Boolean, onB
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { PlayerSymbol(PlayerIcon.BACK, description = "返回媒体库") }
                     Text(series.title, Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    SearchButton(searchOpen) { searchOpen = !searchOpen; if (!searchOpen) search = "" }
                 }
                 Text("${series.items.size} 个文件 · 按集数顺序排列", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(onClick = { onSelect(series.items, 0) }, enabled = !loading, modifier = Modifier.fillMaxWidth()) {
                     PlayerSymbol(PlayerIcon.PLAY, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("播放全部")
                 }
-                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("搜索本剧集中的文件") }, singleLine = true)
+                if (searchOpen) BrowserSearchField(search, { search = it }, "搜索本剧集中的文件")
                 if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
         }

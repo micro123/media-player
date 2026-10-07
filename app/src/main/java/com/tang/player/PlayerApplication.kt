@@ -27,6 +27,7 @@ class AppContainer(private val application: Application,
     val clips = AndroidClipExporter(application)
     val audioMetadata = com.tang.player.data.AudioMetadataRepository(playbackSources ?:
         com.tang.player.data.network.RemotePlaybackSourceResolver(application, network::open))
+    val videoPreviews = com.tang.player.data.VideoPreviewRepository(com.tang.player.core.AndroidPlaybackSourceResolver(application))
 
     // A new instance belongs to each PlayerViewModel; it is released in onCleared().
     fun createPlaybackEngine(): PlaybackEngine = MpvPlaybackEngine(application,

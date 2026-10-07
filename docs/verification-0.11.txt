@@ -1,0 +1,74 @@
+LocalPlayer 0.11.0 / versionCode 11
+Verified: 2026-10-07, Asia/Shanghai
+Device: moto X40 / LineageOS 23.2 / Android 16 / API 36 / arm64-v8a
+
+Git:
+Baseline commit: 20f2121, main; tag v0.10.0.
+Origin: git@github.com:micro123/media-player.git.
+Read-only ls-remote succeeded; remote was empty at verification.
+GitHub SSH 443 endpoint key verified against official Ed25519 fingerprint.
+Verified public key stored in .git/github-known-hosts; repository-local core.sshCommand.
+No global SSH configuration changes and no pushes.
+Application ID and namespace retained as com.tang.player for upgrade/data continuity.
+
+Build:
+:app:testDebugUnitTest --tests com.tang.player.data.BrowseSortingTest
+:app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:assembleRelease
+BUILD SUCCESSFUL in 47s.
+After the test cache correction, :app:assembleDebugAndroidTest :app:lintDebug passed in 15s.
+Lint: 0 errors, 15 existing storage/dependency/catalog recommendations.
+Debug APK v2 signature verified; Debug and unsigned Release 16 KiB zip alignment passed.
+Raw outputs: verification-0.11-build.txt, verification-0.11-test-build.txt.
+
+JVM:
+BrowseSortingTest: 4 passed, 0 failures/errors/skips.
+Coverage: natural numeric names, directory-first order in either direction, size sorting,
+unknown-size placement/name tie-breaking, case-insensitive extensions and reverse ordering.
+Other JVM suites and real SMB/NFS server suites were not rerun in this change.
+
+Android:
+39 distinct cases verified, 0 remaining failures, 0 skips.
+Full run: 39 cases, 38 passed in 150.249s; recording UI case initially read stale accessibility labels.
+UiAutomation.clearCache (API 34+) added to the test node reader; affected case passed in 9.147s.
+PlayerFeaturesTest: 24 cases verified.
+NetworkUiTest: 6 passed.
+ExternalMediaOpenTest: 4 passed.
+MpvPlaybackEngineTest: 5 passed.
+Raw full run and targeted rerun: verification-0.11-device.txt.
+
+Coverage added/updated:
+- Local and network search icons; no default text field; expand/collapse/clear behavior.
+- Local playback-all order follows size sorting and descending direction.
+- Directory name search and type/size sorting choices.
+- File sort preferences persist and are restored after test.
+- Landscape left/right double tap seeks -10/+10 seconds without toggling paused state.
+- Centre double tap still toggles; quick-seek hint no longer intercepts touch.
+- Real horizontal scrub pauses native playback and reads a local thumbnail.
+- Top cancellation strip preserves original position and restores playing state.
+- Committed scrub from paused state seeks once and stays paused.
+- Real progress-bar drag can leave the bar, reach cancellation strip and return unchanged.
+- Progress-bar release commits the selected position.
+- ACTION_CANCEL resumes original state; stop during preview never restarts video.
+- Same recording button starts/ends a range and opens prepared export confirmation.
+- Removed position-bookmark / old-position / speed-reset menu actions absent.
+- Existing native, gestures/boost, 5x sync, lifecycle/exit, orientation/PiP, music,
+  queue/resume, M3U, clips, file/network forms and external-open regressions verified.
+
+Own-fixture screenshots:
+docs/screenshots/file-sort-search-0.11.png
+docs/screenshots/seek-preview-local-0.11.png
+docs/screenshots/recording-one-button-0.11.png
+
+APK SHA-256:
+94e129b2b64efe0b49f4a1cdd4f4cb5f769b4e3fe65f8bfb14ad6a83880224c9  app/build/outputs/apk/debug/app-debug.apk
+d9f93e3f0d3715ed5fad02eea79818a4bd0af1c7e905413afda6bea56ed00aea  app/build/outputs/apk/release/app-release-unsigned.apk
+
+Installation/cleanup:
+Installed APK checksum matches final Debug build; version 0.11.0/code 11.
+Updates used -r; original application data retained.
+Own generated media, ranges and test bookmarks removed; settings/queue/recent restored.
+Retained user bookmarks / encrypted profiles: 1 / 1, no orphan profiles.
+Global restricted networking mode unchanged: true.
+App UID 10163 allowed (policy 4); test UID 10164 remains REJECT_ALL (policy 262144).
+No Docker fixture services or ADB reverse mappings created this turn.
+App launched after verification.

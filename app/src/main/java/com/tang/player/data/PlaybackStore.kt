@@ -31,6 +31,8 @@ data class PlayerPreferences(
     val skipSeconds: Int = 85,
     val orientation: VideoOrientation = VideoOrientation.LANDSCAPE,
     val groupMedia: Boolean = true,
+    val fileSort: BrowseSort = BrowseSort.NAME,
+    val fileSortDescending: Boolean = false,
 )
 
 data class PlaybackBookmark(val positionMs: Long, val durationMs: Long)
@@ -53,6 +55,8 @@ class PlaybackStore(context: Context) {
         skipSeconds = preferences.getInt("skip_seconds", 85).coerceAtLeast(1),
         orientation = VideoOrientation.fromStored(preferences.getString("orientation", null)),
         groupMedia = preferences.getBoolean("group_media", true),
+        fileSort = runCatching { BrowseSort.valueOf(preferences.getString("file_sort", "NAME")!!) }.getOrDefault(BrowseSort.NAME),
+        fileSortDescending = preferences.getBoolean("file_sort_descending", false),
     )
 
     suspend fun writePreferences(value: PlayerPreferences) = withContext(Dispatchers.IO) {
@@ -60,7 +64,8 @@ class PlaybackStore(context: Context) {
             check(preferences.edit().putBoolean("remember_speed", value.rememberSpeed)
                 .putFloat("speed", value.lastSpeed.toFloat()).putString("aspect", value.aspect.name)
                 .putBoolean("auto_next", value.autoNext).putInt("skip_seconds", value.skipSeconds.coerceAtLeast(1))
-                .putString("orientation", value.orientation.name).putBoolean("group_media", value.groupMedia).commit())
+                .putString("orientation", value.orientation.name).putBoolean("group_media", value.groupMedia)
+                .putString("file_sort", value.fileSort.name).putBoolean("file_sort_descending", value.fileSortDescending).commit())
         }
     }
 

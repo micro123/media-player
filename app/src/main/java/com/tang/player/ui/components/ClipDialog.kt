@@ -18,11 +18,13 @@ fun ClipDialog(clip: ClipSelection, state: PlaybackState, onStart: () -> Unit, o
     AlertDialog(onDismissRequest = onDismiss, title = { Text("区间录制") }, text = {
         Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("当前 ${formatTime(state.positionMs)}\n起点 ${clip.startMs?.let(::formatTime) ?: "未标记"}\n终点 ${clip.endMs?.let(::formatTime) ?: "未标记"}")
-            Text("标记起点后关闭此窗口继续观看，在终点再次打开并标记。导出原速、无损 MP4，不包含播放控件；实际起点为前一个关键帧，可能早于标记位置。不支持的音视频编码会提示，字幕暂不导出。", style = MaterialTheme.typography.bodySmall)
+            Text("播放页点击录制按钮开始，再次点击同一按钮结束。导出原速、无损 MP4，不包含播放控件；实际起点为前一个关键帧，可能早于开始位置。不支持的音视频编码会提示，字幕暂不导出。", style = MaterialTheme.typography.bodySmall)
             if (clip.actualStartMs != null) Text("实际导出 ${formatTime(clip.actualStartMs)}～${formatTime(requireNotNull(clip.endMs))}", color = MaterialTheme.colorScheme.primary)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onStart, enabled = canMark) { Text(if (clip.startMs == null) "标记起点" else "重设起点") }
-                OutlinedButton(onClick = onEnd, enabled = canMark && clip.startMs != null && state.positionMs > clip.startMs) { Text("标记终点") }
+                OutlinedButton(onClick = if (clip.startMs != null && clip.endMs == null) onEnd else onStart,
+                    enabled = canMark && (clip.startMs == null || clip.endMs != null || state.positionMs > clip.startMs)) {
+                    Text(if (clip.startMs != null && clip.endMs == null) "结束录制" else if (clip.endMs != null) "重新开始录制" else "开始录制")
+                }
                 TextButton(onClick = onCancel, enabled = !clip.exporting && clip.startMs != null) { Text("清除区间") }
             }
             if (clip.exporting) { LinearProgressIndicator(Modifier.fillMaxWidth()); Text("正在导出片段…") }

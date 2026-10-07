@@ -67,9 +67,8 @@ private fun CircularSeekButton(seconds: Int, onClick: () -> Unit, description: S
 @Composable
 fun VideoTopBar(title: String, queue: PlaylistState, compact: Boolean, skipSeconds: Int,
     canSeek: Boolean, onBack: () -> Unit, onSkip: () -> Unit, onSettings: () -> Unit,
-    onSpeedReset: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
-    resumePosition: Long, onResume: () -> Unit, modifier: Modifier = Modifier, onMenuVisibility: (Boolean) -> Unit = {},
-    onBookmark: () -> Unit = {}, onClip: () -> Unit = {}) {
+    onPrevious: () -> Unit, onSeek: (Long) -> Unit, modifier: Modifier = Modifier, onMenuVisibility: (Boolean) -> Unit = {},
+    onClip: () -> Unit = {}, recording: Boolean = false) {
     var showMore by remember { mutableStateOf(false) }
     val closeMenu = { showMore = false; onMenuVisibility(false) }
     var time by remember { mutableStateOf("") }
@@ -88,19 +87,15 @@ fun VideoTopBar(title: String, queue: PlaylistState, compact: Boolean, skipSecon
         }
         if (!compact) Text(time, color = SecondaryVideoText, fontSize = 14.sp, modifier = Modifier.padding(end = 14.dp))
         CircularSeekButton(skipSeconds, onSkip, "跳过 $skipSeconds 秒", canSeek)
+        key(recording) {
+            VideoIconButton(if (recording) PlayerIcon.STOP else PlayerIcon.RECORD, if (recording) "结束录制" else "开始录制", onClip, enabled = canSeek)
+        }
         VideoIconButton(PlayerIcon.SETTINGS, "播放设置", onSettings)
         Box {
             VideoIconButton(PlayerIcon.MORE, "更多播放操作", { showMore = true; onMenuVisibility(true) })
             DropdownMenu(expanded = showMore, onDismissRequest = closeMenu) {
-                DropdownMenuItem(text = { Text("保存播放位置书签") }, enabled = canSeek,
-                    onClick = { closeMenu(); onBookmark() })
-                DropdownMenuItem(text = { Text("区间录制") }, enabled = canSeek,
-                    onClick = { closeMenu(); onClip() })
                 DropdownMenuItem(text = { Text("从头播放") }, enabled = canSeek,
                     onClick = { closeMenu(); onSeek(0) })
-                if (resumePosition > 0) DropdownMenuItem(text = { Text("回到上次 ${formatTime(resumePosition)}") }, enabled = canSeek,
-                    onClick = { closeMenu(); onResume() })
-                DropdownMenuItem(text = { Text("恢复 1.0 倍") }, onClick = { closeMenu(); onSpeedReset() })
                 DropdownMenuItem(text = { Text("上一项") }, enabled = queue.hasPrevious,
                     onClick = { closeMenu(); onPrevious() })
             }
@@ -114,11 +109,12 @@ fun VideoBottomBar(state: PlaybackState, queue: PlaylistState, aspect: VideoAspe
     portrait: Boolean, wide: Boolean, resumePosition: Long, onToggle: () -> Unit, onSeek: (Long) -> Unit,
     onPrevious: () -> Unit, onNext: () -> Unit, onQueue: () -> Unit, onAspect: () -> Unit,
     onSpeed: () -> Unit, onRotate: () -> Unit, onResume: () -> Unit, onInteract: () -> Unit,
-    modifier: Modifier = Modifier) {
-    var dragged by remember(state.media?.uri) { mutableFloatStateOf(-1f) }
+    modifier: Modifier = Modifier, seekPreview: com.tang.player.ui.VideoSeekPreview? = null,
+    thumbnail: android.graphics.Bitmap? = null, onSeekBegin: () -> Unit = {},
+    onSeekUpdate: (Long, Boolean) -> Unit = { _, _ -> }, onSeekFinish: (Boolean) -> Unit = {}, cancelBoundaryY: Float = 0f) {
     val duration = state.durationMs.coerceAtLeast(0)
     val fraction = if (duration > 0) (state.positionMs.toFloat() / duration).coerceIn(0f, 1f) else 0f
-    val position = if (dragged >= 0) (dragged * duration).toLong() else state.positionMs
+    val position = seekPreview?.targetPositionMs ?: state.positionMs
     val remaining = ((duration - position).coerceAtLeast(0) / state.speed.coerceAtLeast(0.1)).toLong()
     val canSeek = state.canControl && state.seekable && duration > 0
     val accent = MaterialTheme.colorScheme.primary
@@ -133,16 +129,13 @@ fun VideoBottomBar(state: PlaybackState, queue: PlaylistState, aspect: VideoAspe
                 Text("上次 ${formatTime(resumePosition)}", fontSize = 12.sp)
             }
         }
-        Slider(value = if (dragged >= 0) dragged else fraction, onValueChange = { dragged = it; onInteract() },
-            onValueChangeFinished = { if (dragged >= 0) onSeek((dragged * duration).toLong()); dragged = -1f; onInteract() },
-            enabled = canSeek, modifier = Modifier.fillMaxWidth().height(32.dp).semantics { contentDescription = "播放进度" },
-            thumb = { Box(Modifier.size(14.dp).background(if (canSeek) accent else SecondaryVideoText, CircleShape)) },
-            track = { slider ->
-                Canvas(Modifier.fillMaxWidth().height(3.dp)) {
-                    drawLine(Color.White.copy(alpha = 0.28f), Offset(0f, center.y), Offset(size.width, center.y), strokeWidth = size.height, cap = StrokeCap.Round)
-                    drawLine(if (canSeek) accent else SecondaryVideoText, Offset(0f, center.y), Offset(size.width * slider.value, center.y), strokeWidth = size.height, cap = StrokeCap.Round)
-                }
-            })
+        Box(Modifier.fillMaxWidth()) {
+            VideoSeekBar(state.media?.uri, if (seekPreview != null && duration > 0) seekPreview.targetPositionMs.toFloat() / duration else fraction,
+                duration, canSeek, accent, cancelBoundaryY, onSeekBegin, onSeekUpdate, onSeekFinish, onSeek, onInteract)
+            if (seekPreview != null) Box(Modifier.matchParentSize().wrapContentHeight(Alignment.Bottom, unbounded = true).offset(y = (-32).dp)) {
+                SeekPreviewCard(seekPreview, thumbnail, duration)
+            }
+        }
         val transport: @Composable RowScope.() -> Unit = {
             VideoIconButton(if (state.status == PlaybackStatus.PLAYING) PlayerIcon.PAUSE else if (state.status == PlaybackStatus.ENDED) PlayerIcon.REPLAY else PlayerIcon.PLAY,
                 if (state.status == PlaybackStatus.PLAYING) "暂停" else if (state.status == PlaybackStatus.ENDED) "重播" else "播放",

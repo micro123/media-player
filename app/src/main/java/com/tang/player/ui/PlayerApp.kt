@@ -44,13 +44,15 @@ import com.tang.player.ui.theme.VideoPlayerTheme
 fun PlayerApp(container: AppContainer) {
     val factory = remember(container) { viewModelFactory { initializer {
         PlayerViewModel(container.mediaRepository, container.createPlaybackEngine(), createSavedStateHandle(), container.mediaBrowser,
-            container.playbackStore, container.bookmarks, container.playlists, container.clips, container.network, container.audioMetadata)
+            container.playbackStore, container.bookmarks, container.playlists, container.clips, container.network, container.audioMetadata, container.videoPreviews)
     } } }
     val viewModel: PlayerViewModel = viewModel(factory = factory)
     val activity = LocalActivity.current as? MainActivity
     val library by viewModel.library.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val audioMetadata by viewModel.audioMetadata.collectAsStateWithLifecycle()
+    val seekPreview by viewModel.seekPreview.collectAsStateWithLifecycle()
+    val seekThumbnail by viewModel.seekThumbnail.collectAsStateWithLifecycle()
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
     val audioPlayerOpen by viewModel.audioPlayerOpen.collectAsStateWithLifecycle()
     val queue by viewModel.queue.collectAsStateWithLifecycle()
@@ -196,8 +198,15 @@ fun PlayerApp(container: AppContainer) {
             { showAspect = true }, { showQueue = true }, viewModel::previous, viewModel::next,
             viewModel::resumeLastPosition, viewModel::retry, preferences.skipSeconds, viewModel::skipSegment,
             viewModel::exitVideo,
-            { showVideoSettings = true }, { viewModel.setSpeed(1.0) }, modifier,
-            onBookmark = { bookmarkDialog = "position" }, onClip = { showClip = true }, clipStartMs = clip.startMs)
+            { showVideoSettings = true }, modifier,
+            onClip = {
+                if (clip.startMs != null && clip.endMs == null) {
+                    viewModel.markClipEnd()
+                    if (viewModel.clip.value.endMs != null) showClip = true
+                } else viewModel.markClipStart()
+            }, clipStartMs = clip.startMs, clipEndMs = clip.endMs,
+            seekPreview = seekPreview, seekThumbnail = seekThumbnail, onSeekBegin = viewModel::beginSeekPreview,
+            onSeekUpdate = viewModel::updateSeekPreview, onSeekFinish = viewModel::finishSeekPreview)
         }
     }
     val audioContent: @Composable (Modifier) -> Unit = { modifier ->
@@ -249,12 +258,14 @@ fun PlayerApp(container: AppContainer) {
                             { viewModel.selectTab(2) }, preferences.groupMedia, viewModel::setGroupMedia, modifier,
                             onNetwork = { editingLocation = null; showNetwork = true }, onImportPlaylist = importPlaylist,
                             onBookmarks = { viewModel.selectTab(4) }, onFileRoot = viewModel::showFileLocations,
-                            onSaveFolder = { bookmarkDialog = "folder" })
+                            onSaveFolder = { bookmarkDialog = "folder" }, fileSort = preferences.fileSort,
+                            fileSortDescending = preferences.fileSortDescending, onFileSort = viewModel::setFileSort)
                     }
                     FileView.NETWORK -> remoteBrowser?.let { state ->
                         browsingState.SaveableStateProvider("remote-${state.current}") {
                             NetworkBrowserScreen(state, { entry -> withNetworkAccess { viewModel.openRemoteEntry(entry) } },
                                 viewModel::upRemote, { withNetworkAccess { viewModel.refreshRemote() } }, modifier,
+                                fileSort = preferences.fileSort, fileSortDescending = preferences.fileSortDescending, onFileSort = viewModel::setFileSort,
                                 onBookmark = { bookmarkDialog = "folder" }, onNetworkSettings = {
                                     activity?.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${activity.packageName}".toUri()))
                                 })

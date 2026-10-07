@@ -18,6 +18,8 @@ import com.tang.player.core.MediaItem
 import com.tang.player.data.*
 import com.tang.player.data.network.NetworkCredentials
 import com.tang.player.ui.RemoteBrowserState
+import com.tang.player.ui.LibrarySource
+import com.tang.player.ui.LibraryState
 import com.tang.player.ui.screens.*
 import com.tang.player.ui.theme.LocalPlayerTheme
 import org.junit.Assert.*
@@ -30,6 +32,76 @@ import java.util.concurrent.atomic.AtomicInteger
 class NetworkUiTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
+    @Test fun localFilesHideSearchAndSortDisplayAndPlaybackTogether() {
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val first = MediaItem("file:///test/episode2.mp4", "episode2.mp4", "video/mp4", 200)
+        val second = MediaItem("file:///test/episode10.mp4", "episode10.mp4", "video/mp4", 50)
+        val state = LibraryState(source = LibrarySource.FOLDER, isLoading = false,
+            entries = listOf(FolderEntry(first.uri, first.displayName, "first", first), FolderEntry(second.uri, second.displayName, "second", second),
+                FolderEntry("file:///test/Folder", "Folder", "folder")), folderPath = listOf(FolderLocation("test", "测试文件夹")))
+        val sort = mutableStateOf(BrowseSort.NAME)
+        val reverse = mutableStateOf(false)
+        var selected = emptyList<MediaItem>()
+        try {
+            scenario.onActivity { activity ->
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                activity.setContent { LocalPlayerTheme { Surface(Modifier.fillMaxSize().systemBarsPadding()) {
+                    LibraryScreen(state, {}, { items, _ -> selected = items }, {}, {}, {}, {}, {}, {}, {}, {}, false, {},
+                        fileSort = sort.value, fileSortDescending = reverse.value, onFileSort = { value, descending -> sort.value = value; reverse.value = descending })
+                } } }
+            }
+            await("file list has search icon") { contains("搜索") && contains("文件排序") }
+            assertNull(walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable })
+            click("文件排序"); click("按大小排序")
+            await("size order selected") { sort.value == BrowseSort.SIZE }
+            click("播放全部")
+            await("playback follows ascending displayed order") { selected.map { it.uri } == listOf(second.uri, first.uri) }
+            click("文件排序"); click("降序")
+            await("descending selected") { reverse.value }
+            click("播放全部")
+            await("playback follows descending displayed order") { selected.map { it.uri } == listOf(first.uri, second.uri) }
+            click("搜索")
+            await("search expands") { walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable } != null }
+            val editor = requireNotNull(walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable })
+            assertTrue(editor.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, android.os.Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "Folder")
+            }))
+            await("search includes directories and filters media") { contains("Folder") && !contains("episode2.mp4") && !contains("episode10.mp4") }
+            click("关闭搜索")
+            await("closing clears filter and editor") { walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable } == null }
+            click("播放全部")
+            await("unfiltered files restored") { selected.size == 2 }
+            screenshot("file-sort-search-0.11.png")
+        } finally { scenario.close() }
+    }
+
+    @Test fun networkFilesHideSearchAndOfferSharedSortingControls() {
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val sort = mutableStateOf(BrowseSort.NAME)
+        val reverse = mutableStateOf(false)
+        val root = "smb://fixture.example.invalid/Movies"
+        val state = RemoteBrowserState(root, root, listOf(SourceEntry("$root/Season", "Season", true),
+            SourceEntry("$root/episode2.mp4", "episode2.mp4", false, MediaItem("$root/episode2.mp4", "episode2.mp4", "video/mp4", 42))), loading = false)
+        try {
+            scenario.onActivity { activity ->
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                activity.setContent { LocalPlayerTheme { Surface(Modifier.fillMaxSize().systemBarsPadding()) {
+                    NetworkBrowserScreen(state, {}, {}, {}, fileSort = sort.value, fileSortDescending = reverse.value,
+                        onFileSort = { value, descending -> sort.value = value; reverse.value = descending })
+                } } }
+            }
+            await("remote browse tools") { contains("搜索") && contains("文件排序") }
+            assertNull(walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable })
+            click("文件排序"); click("按类型排序")
+            await("network type sort selected") { sort.value == BrowseSort.TYPE }
+            click("文件排序"); click("降序")
+            await("network reverse selected") { reverse.value }
+            click("搜索")
+            await("remote search expanded") { walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable } != null }
+            click("关闭搜索")
+            await("remote search collapsed") { walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable } == null }
+        } finally { scenario.close() }
+    }
     @Test fun videoDirectionChoicesExposeLandscapePortraitAndKeep() {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         val selection = mutableStateOf(PlayerPreferences().orientation)
@@ -140,7 +212,8 @@ class NetworkUiTest {
             await("NFS form") { contains("UID") && contains("GID") }
             screenshot("network-nfs-0.8.png")
             click("保存并连接")
-            await("directory") { contains("episode-02.mp4") && contains("搜索当前目录") }
+            await("directory") { contains("episode-02.mp4") && contains("搜索") }
+            assertNull(walk(instrumentation.uiAutomation.rootInActiveWindow) { it.isEditable })
             screenshot("network-browser-0.8.png")
             click("episode-02.mp4"); await("file action") { opened.get() == 1 }
             click("收藏当前目录"); await("folder bookmark action") { opened.get() == 11 }
@@ -163,11 +236,11 @@ class NetworkUiTest {
     } != null
     private fun click(text: String) {
         await("clickable $text") {
-            var node = walk(instrumentation.uiAutomation.rootInActiveWindow) { it.text?.toString() == text }
+            var node = walk(instrumentation.uiAutomation.rootInActiveWindow) { it.text?.toString() == text || it.contentDescription?.toString() == text }
             while (node != null && !node.isClickable) node = node.parent
             node?.isClickable == true && node.isEnabled
         }
-        var node = walk(instrumentation.uiAutomation.rootInActiveWindow) { it.text?.toString() == text }
+        var node = walk(instrumentation.uiAutomation.rootInActiveWindow) { it.text?.toString() == text || it.contentDescription?.toString() == text }
         while (node != null && !node.isClickable) node = node.parent
         assertNotNull("click target $text", node)
         assertTrue(node!!.performAction(AccessibilityNodeInfo.ACTION_CLICK))

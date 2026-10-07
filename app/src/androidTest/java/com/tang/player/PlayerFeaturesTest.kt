@@ -152,6 +152,104 @@ class PlayerFeaturesTest {
     }
 
     @Test
+    fun landscapeSideDoubleTapSeeksAndCentreStillToggles() {
+        onMain { player.setSpeed(1.0); player.playList(listOf(first), 0) }
+        await("side gestures ready") { player.fullScreen.value && player.playback.value.status == PlaybackStatus.PLAYING }
+        Thread.sleep(1200)
+        onMain { player.pause(); player.seekTo(20_000) }
+        await("side gesture origin") { player.playback.value.status == PlaybackStatus.PAUSED && player.playback.value.positionMs in 19_800..20_200 }
+        val width = activity.window.decorView.width.toFloat(); val height = activity.window.decorView.height.toFloat()
+        doubleTapAt(width * .18f, height * .5f)
+        await("left double tap minus ten") { player.playback.value.positionMs in 9800..10_200 && player.playback.value.status == PlaybackStatus.PAUSED }
+        Thread.sleep(400)
+        doubleTapAt(width * .78f, height * .5f)
+        await("right double tap plus ten") { player.playback.value.positionMs in 19_800..20_200 && player.playback.value.status == PlaybackStatus.PAUSED }
+        Thread.sleep(400)
+        doubleTapAt(width * .5f, height * .5f)
+        await("centre toggles playback") { player.playback.value.status == PlaybackStatus.PLAYING }
+    }
+
+    @Test
+    fun seekGesturePausesShowsLocalFrameAndCancelsOrCommits() {
+        onMain { player.setSpeed(1.0); player.playList(listOf(first), 0) }
+        await("preview video ready") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.seekable }
+        Thread.sleep(1200)
+        val width = activity.window.decorView.width.toFloat(); val height = activity.window.decorView.height.toFloat()
+        var down = sendDownAt(width * .36f, height * .48f)
+        var released = false
+        try {
+            repeat(8) { sendMove(down, width * (.36f + (it + 1) * .03f), height * .48f); Thread.sleep(35) }
+            await("scrub pauses playback with frame") { player.seekPreview.value != null && player.playback.value.status == PlaybackStatus.PAUSED && player.seekThumbnail.value != null }
+            val original = requireNotNull(player.seekPreview.value).originalPositionMs
+            assertTrue(requireNotNull(player.seekPreview.value).targetPositionMs > original + 7000)
+            assertNotNull(findAccessibleText("本地视频画面预览"))
+            saveScreenshot("seek-preview-local-0.11.png")
+            sendMove(down, width * .6f, height * .1f)
+            await("top strip cancels") { player.seekPreview.value?.cancelled == true }
+            sendEnd(down.copy(x = width * .6f, y = height * .1f), MotionEvent.ACTION_UP); released = true
+            await("cancel restores playback") { player.seekPreview.value == null && player.playback.value.status == PlaybackStatus.PLAYING }
+            assertTrue("Cancelled drag applied target", player.playback.value.positionMs < original + 4000)
+        } finally { if (!released) sendEnd(down, MotionEvent.ACTION_CANCEL) }
+        onMain { player.pause(); player.seekTo(5000) }
+        await("paused scrub origin") { player.playback.value.status == PlaybackStatus.PAUSED && player.playback.value.positionMs in 4800..5200 }
+        down = sendDownAt(width * .36f, height * .48f); released = false
+        try {
+            repeat(8) { sendMove(down, width * (.36f + (it + 1) * .025f), height * .48f); Thread.sleep(35) }
+            await("paused scrub has target") { (player.seekPreview.value?.targetPositionMs ?: 0) > 11_000 }
+            val target = requireNotNull(player.seekPreview.value).targetPositionMs
+            sendEnd(down.copy(x = width * .56f, y = height * .48f), MotionEvent.ACTION_UP); released = true
+            await("release commits and stays paused") { player.seekPreview.value == null && player.playback.value.positionMs in (target - 200)..(target + 200) && player.playback.value.status == PlaybackStatus.PAUSED }
+        } finally { if (!released) sendEnd(down, MotionEvent.ACTION_CANCEL) }
+    }
+
+    @Test
+    fun progressBarDragPreviewsAndCanBeCancelledAtTop() {
+        onMain { player.playList(listOf(first), 0) }
+        await("bar preview ready") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.seekable }
+        Thread.sleep(1200)
+        onMain { player.pause(); player.seekTo(5000); player.setFileSort(BrowseSort.SIZE, true) }
+        await("sort settings persist") { PlaybackStore(context).readPreferences().let { it.fileSort == BrowseSort.SIZE && it.fileSortDescending } }
+        await("paused bar origin") { player.playback.value.status == PlaybackStatus.PAUSED && player.playback.value.positionMs in 4800..5200 }
+        val bounds = Rect()
+        await("progress bar accessible") { findAccessibleText("播放进度")?.also { it.getBoundsInScreen(bounds) } != null && !bounds.isEmpty }
+        var down = sendDownAt(bounds.left + bounds.width() * .25f, bounds.exactCenterY())
+        var released = false
+        try {
+            repeat(7) { sendMove(down, bounds.left + bounds.width() * (.25f + (it + 1) * .05f), bounds.exactCenterY()); Thread.sleep(35) }
+            await("bar generates local preview") { player.seekThumbnail.value != null && (player.seekPreview.value?.targetPositionMs ?: 0) > 20_000 }
+            val x = bounds.left + bounds.width() * .6f
+            val top = activity.window.decorView.height * .1f
+            sendMove(down, x, top)
+            await("bar can leave its bounds and reach cancellation") { player.seekPreview.value?.cancelled == true }
+            sendEnd(down.copy(x = x, y = top), MotionEvent.ACTION_UP); released = true
+            await("bar cancel stays paused at original position") { player.seekPreview.value == null && player.playback.value.status == PlaybackStatus.PAUSED && player.playback.value.positionMs in 4800..5200 }
+        } finally { if (!released) sendEnd(down, MotionEvent.ACTION_CANCEL) }
+        down = sendDownAt(bounds.left + bounds.width() * .3f, bounds.exactCenterY()); released = false
+        try {
+            repeat(6) { sendMove(down, bounds.left + bounds.width() * (.3f + (it + 1) * .05f), bounds.exactCenterY()); Thread.sleep(35) }
+            await("bar target ready") { (player.seekPreview.value?.targetPositionMs ?: 0) > 20_000 }
+            val target = requireNotNull(player.seekPreview.value).targetPositionMs
+            sendEnd(down.copy(x = bounds.left + bounds.width() * .6f, y = bounds.exactCenterY()), MotionEvent.ACTION_UP); released = true
+            await("bar release commits target") { player.seekPreview.value == null && player.playback.value.status == PlaybackStatus.PAUSED && player.playback.value.positionMs in (target - 200)..(target + 200) }
+        } finally { if (!released) sendEnd(down, MotionEvent.ACTION_CANCEL) }
+    }
+
+    @Test
+    fun seekPreviewCancellationOnSystemCancelAndStopNeverRestartsVideo() {
+        onMain { player.playList(listOf(first), 0) }
+        await("cancel lifecycle playback") { player.playback.value.status == PlaybackStatus.PLAYING }
+        Thread.sleep(1200)
+        val width = activity.window.decorView.width.toFloat(); val height = activity.window.decorView.height.toFloat()
+        val down = sendDownAt(width * .36f, height * .48f)
+        repeat(6) { sendMove(down, width * (.36f + (it + 1) * .025f), height * .48f); Thread.sleep(35) }
+        await("active before system cancellation") { player.seekPreview.value != null && player.playback.value.status == PlaybackStatus.PAUSED }
+        sendEnd(down, MotionEvent.ACTION_CANCEL)
+        await("system cancel restores playing") { player.seekPreview.value == null && player.playback.value.status == PlaybackStatus.PLAYING }
+        onMain { player.beginSeekPreview(); player.updateSeekPreview(25_000, false); player.stopPlayback(); player.finishSeekPreview(false) }
+        await("stop during preview remains stopped") { player.seekPreview.value == null && player.playback.value.status == PlaybackStatus.IDLE }
+    }
+
+    @Test
     fun videoGesturesSeekBrightnessVolumeAndDoubleTap() {
         onMain { player.setSpeed(1.0); player.playList(listOf(first), 0) }
         await("video gestures ready") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.seekable }
@@ -464,6 +562,7 @@ class PlayerFeaturesTest {
                 .any { it.title == title && it.items.map { media -> media.uri } == listOf(second.uri, first.uri) } && !player.library.value.isLoading
         }
         await("portrait library") { activity.window.decorView.width < activity.window.decorView.height }
+        clickAccessibleText("搜索")
         await("library search ready") { findAccessibleNode { it.isEditable } != null }
         assertTrue(requireNotNull(findAccessibleNode { it.isEditable }).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, title)
@@ -664,19 +763,16 @@ class PlayerFeaturesTest {
         onMain { player.pause(); player.seekTo(10_000) }
         await("UI clip paused start") { player.playback.value.status == PlaybackStatus.PAUSED && player.playback.value.positionMs in 9900..10_100 }
         clickUiAction("更多播放操作")
-        clickUiAction("保存播放位置书签")
-        await("position name form") { findAccessibleNode { it.isEditable } != null }
-        setEditableText(0, "测试界面位置")
-        clickUiAction("保存")
-        await("position saved from UI") { bookmarksStore.items.value.any { it.name == "测试界面位置" } }
-        clickUiAction("更多播放操作")
-        clickUiAction("区间录制")
-        clickUiAction("标记起点")
-        clickUiAction("返回观看")
+        assertNull(findAccessibleText("保存播放位置书签"))
+        assertNull(findAccessibleText("恢复 1.0 倍"))
+        assertNull(findAccessibleNode { it.text?.startsWith("回到上次") == true })
+        shell("input keyevent KEYCODE_BACK")
+        clickUiAction("开始录制")
+        await("one button started recording") { player.clip.value.startMs != null && player.clip.value.endMs == null }
         onMain { player.seekTo(15_000) }
         await("UI clip paused end") { player.playback.value.positionMs in 14_900..15_100 }
-        clickUiAction("● 区间起点 00:10 · 标记终点")
-        clickUiAction("标记终点")
+        saveScreenshot("recording-one-button-0.11.png")
+        clickUiAction("结束录制")
         await("actual clip range displayed") { findAccessibleText("实际导出 00:00～00:15") != null }
         saveScreenshot("clip-range-ui.png")
         assertTrue(requireNotNull(findAccessibleText("导出片段")).isEnabled)
@@ -730,6 +826,18 @@ class PlayerFeaturesTest {
     }
 
     private data class PointerDown(val time: Long, val x: Float, val y: Float)
+    private fun sendDownAt(x: Float, y: Float): PointerDown {
+        val down = PointerDown(SystemClock.uptimeMillis(), x, y)
+        MotionEvent.obtain(down.time, down.time, MotionEvent.ACTION_DOWN, x, y, 0).also {
+            instrumentation.sendPointerSync(it); it.recycle()
+        }
+        return down
+    }
+    private fun sendMove(down: PointerDown, x: Float, y: Float) {
+        MotionEvent.obtain(down.time, SystemClock.uptimeMillis(), MotionEvent.ACTION_MOVE, x, y, 0).also {
+            instrumentation.sendPointerSync(it); it.recycle()
+        }
+    }
     private fun sendDown(): PointerDown {
         var x = 0f; var y = 0f
         onMain { x = activity.window.decorView.width / 2f; y = activity.window.decorView.height / 2f }
@@ -752,6 +860,13 @@ class PlayerFeaturesTest {
         val secondDown = sendDown()
         Thread.sleep(55)
         sendEnd(secondDown, MotionEvent.ACTION_UP)
+    }
+    private fun doubleTapAt(x: Float, y: Float) {
+        repeat(2) { index ->
+            val down = sendDownAt(x, y)
+            Thread.sleep(55); sendEnd(down, MotionEvent.ACTION_UP)
+            if (index == 0) Thread.sleep(90)
+        }
     }
     private fun clickAccessibleText(text: String) {
         var target: AccessibilityNodeInfo? = null
@@ -781,6 +896,9 @@ class PlayerFeaturesTest {
         sendEnd(down, MotionEvent.ACTION_UP)
     }
     private fun findAccessibleNode(predicate: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        // Dynamic Compose labels can outlive their nodes in UiAutomation's cache.
+        // Read the current tree before selecting the recording button's next action.
+        if (android.os.Build.VERSION.SDK_INT >= 34) instrumentation.uiAutomation.clearCache()
         fun find(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
             node ?: return null
             if (predicate(node)) return node
