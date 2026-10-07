@@ -21,7 +21,7 @@ A libmpv-powered Android media player with local browsing, SMB/NFS, playlists an
 0.12.0 开始使用新的应用 ID，可与此前的 `com.tang.player` 测试版并存。旧版设置、书签和观看进度不会自动迁移。
 日常开发提交生成的调试 APK 可在 [Actions](https://github.com/micro123/media-player/actions/workflows/build.yml) 对应任务的 Artifacts 中获取；调试版与正式版签名不同，不能互相直接覆盖安装。
 
-Release 附件中的 `SHA256SUMS` 用于校验文件，`BUILD_INFO.json` 记录版本、提交和签名证书指纹；映射 ZIP 用于排查崩溃，源码归档用于查看和重建。普通使用只需下载 APK。
+Release 附件中的 `SHA256SUMS` 用于校验文件，`BUILD_INFO.json` 记录版本、提交和签名证书指纹；映射 ZIP 用于排查崩溃。普通使用只需下载 APK，源码下载方法见下文。
 
 ## 功能
 
@@ -116,6 +116,32 @@ THIRD_PARTY_NOTICES.md          原生及网络依赖来源与许可声明
 ## 文档与第三方依赖
 
 项目原创源码采用 **GPL-3.0-only**，完整条款见 [LICENSE](LICENSE)。第三方组件保留各自的许可证和版权声明。
+
+### 源码下载与重建
+
+应用源码可从每个 [Release](https://github.com/micro123/media-player/releases) 的 **Source code (zip / tar.gz)** 下载，或检出与安装包匹配的版本标签：
+
+```sh
+git clone --branch v0.12.0 https://github.com/micro123/media-player.git
+cd media-player
+./gradlew :app:assembleDebug
+```
+
+应用使用未经修改的 `dev.jdtech.mpv:libmpv:1.0.0` AAR。其对应的 JNI 包装层、原生依赖版本、补丁和构建脚本来自 [libmpv-android v1.0.0](https://github.com/jarnedemeulemeester/libmpv-android/tree/v1.0.0)。
+下载该版本并运行上游脚本，即可取得固定版本的 mpv、FFmpeg 及其他原生依赖源码并重建：
+
+```sh
+git clone --depth 1 --branch v1.0.0 https://github.com/jarnedemeulemeester/libmpv-android.git
+cd libmpv-android/buildscripts
+./download.sh
+./patch.sh
+./build.sh
+```
+
+只获取依赖源码而不安装 SDK、NDK，可在 `buildscripts` 目录运行 `bash include/download-deps.sh`。
+下载脚本使用 [depinfo.sh](https://github.com/jarnedemeulemeester/libmpv-android/blob/v1.0.0/buildscripts/include/depinfo.sh) 固定版本，其中 mpv 为 **0.41.0**、FFmpeg 为 **8.1**。
+原生构建的环境要求和 AAR 构建步骤见 [上游构建说明](https://github.com/jarnedemeulemeester/libmpv-android/blob/v1.0.0/buildscripts/README.md)，完整组件列表见 [第三方声明](THIRD_PARTY_NOTICES.md)。
+日常 APK 构建使用预编译 AAR，GitHub Actions 不下载或重新编译这些原生源码。
 
 - [0.12.0 发布说明](docs/releases/0.12.0.md)
 - [文件排序、区间录制与可取消跳转预览](docs/browsing-and-gestures-0.11.md)

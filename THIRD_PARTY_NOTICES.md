@@ -56,8 +56,8 @@ GPL v2 和 v3 原文已经放入应用 assets/licenses，分别取自 mpv v0.41.
 - 该 AAR 提供 arm64-v8a、armeabi-v7a、x86 和 x86_64。
 
 0.12.0 起应用原创源码采用 GPL-3.0-only，完整条款见仓库 LICENSE。
-Release 同时提供对应提交的应用源码归档，以及 libmpv-android v1.0.0 的包装层、原生构建脚本、补丁和固定版本依赖源码归档。
-源码收集脚本为 tools/ci/package-native-source.sh；原生归档保留上游 patch.sh 所需的 Git 元数据。
-仅将上游 Lua 下载地址改为 HTTPS，其他依赖版本、源码和构建配置按上游 v1.0.0 保留。
+应用对应源码通过 GitHub Release 的 Source code 附件或版本标签获取。
+libmpv-android v1.0.0 的包装层、补丁与构建脚本以及其固定依赖源码的下载命令集中列在仓库 README「源码下载与重建」。
+本项目使用未经修改的上游 AAR，不在发布流程中下载或归档原生依赖源码。
 原生重建步骤为 buildscripts/download.sh、patch.sh、build.sh，详见原生归档中的 buildscripts/README.md。
 应用内 assets/licenses 包含项目许可、JNI 包装层 MIT、GPL v2/v3 与网络依赖声明；各原生源码树保留组件自身的许可文件。

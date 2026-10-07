@@ -69,13 +69,6 @@ def main() -> None:
     with zipfile.ZipFile(target / f'media-player-{name}-mapping.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
         for entry in sorted(mapping.glob('*.txt')):
             archive.write(entry, entry.name)
-    subprocess.run(['git', '-C', str(ROOT), 'archive', '--format=tar.gz',
-                    f'--prefix=media-player-{name}/',
-                    f'--output={target / f"media-player-{name}-source.tar.gz"}', 'HEAD'], check=True)
-    native_source = ROOT / 'build/libmpv-android-1.0.0-source.tar.gz'
-    if not native_source.is_file():
-        raise SystemExit('Missing native source archive; run bash tools/ci/package-native-source.sh first.')
-    shutil.copyfile(native_source, target / native_source.name)
     info = {
         'application_id': metadata.APPLICATION_ID, 'version_name': name, 'version_code': code,
         'git_commit': run('git', '-C', str(ROOT), 'rev-parse', 'HEAD').strip(),
