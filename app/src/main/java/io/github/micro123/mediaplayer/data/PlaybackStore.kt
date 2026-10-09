@@ -33,9 +33,16 @@ data class PlayerPreferences(
     val groupMedia: Boolean = true,
     val fileSort: BrowseSort = BrowseSort.NAME,
     val fileSortDescending: Boolean = false,
+    val autoPip: Boolean = false,
+    val backgroundVideo: Boolean = false,
 )
 
 data class PlaybackBookmark(val positionMs: Long, val durationMs: Long)
+
+/** One durable queue snapshot. Availability is deliberately checked only when played. */
+data class LastPlayback(val name: String, val items: List<MediaItem>, val index: Int) {
+    val current: MediaItem? get() = items.getOrNull(index)
+}
 
 fun normalizeSpeed(speed: Double): Double = if (speed.isFinite()) round(speed.coerceIn(0.1, 5.0) * 10) / 10 else 1.0
 fun boostedSpeed(speed: Double): Double = (speed * 2).coerceIn(0.1, 5.0)
@@ -57,6 +64,8 @@ class PlaybackStore(context: Context) {
         groupMedia = preferences.getBoolean("group_media", true),
         fileSort = runCatching { BrowseSort.valueOf(preferences.getString("file_sort", "NAME")!!) }.getOrDefault(BrowseSort.NAME),
         fileSortDescending = preferences.getBoolean("file_sort_descending", false),
+        autoPip = preferences.getBoolean("auto_pip", false),
+        backgroundVideo = preferences.getBoolean("background_video", false),
     )
 
     suspend fun writePreferences(value: PlayerPreferences) = withContext(Dispatchers.IO) {
@@ -65,7 +74,8 @@ class PlaybackStore(context: Context) {
                 .putFloat("speed", value.lastSpeed.toFloat()).putString("aspect", value.aspect.name)
                 .putBoolean("auto_next", value.autoNext).putInt("skip_seconds", value.skipSeconds.coerceAtLeast(1))
                 .putString("orientation", value.orientation.name).putBoolean("group_media", value.groupMedia)
-                .putString("file_sort", value.fileSort.name).putBoolean("file_sort_descending", value.fileSortDescending).commit())
+                .putString("file_sort", value.fileSort.name).putBoolean("file_sort_descending", value.fileSortDescending)
+                .putBoolean("auto_pip", value.autoPip).putBoolean("background_video", value.backgroundVideo).commit())
         }
     }
 
@@ -111,5 +121,39 @@ class PlaybackStore(context: Context) {
             put("uri", media.uri); put("name", media.displayName); put("mime", media.mimeType ?: ""); put("size", media.sizeBytes ?: -1)
         }) }
         mutex.withLock { check(preferences.edit().putString("queue", values.toString()).commit()) }
+    }
+
+    suspend fun readLastPlayback(): LastPlayback? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            runCatching {
+                val encoded = preferences.getString("last_playback", null) ?: return@withLock null
+                val value = JSONObject(encoded)
+                val values = value.getJSONArray("items")
+                val items = List(values.length()) { index ->
+                    val item = values.getJSONObject(index)
+                    MediaItem(item.getString("uri"), item.getString("name"), item.optString("mime").takeIf { it.isNotBlank() },
+                        item.optLong("size", -1).takeIf { it >= 0 })
+                }
+                val index = value.getInt("index")
+                if (index !in items.indices) null else LastPlayback(value.getString("name"), items, index)
+            }.getOrNull()
+        }
+    }
+
+    suspend fun writeLastPlayback(value: LastPlayback?) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val editor = preferences.edit()
+            if (value == null) editor.remove("last_playback") else {
+                require(value.index in value.items.indices)
+                val items = JSONArray()
+                value.items.forEach { media -> items.put(JSONObject().apply {
+                    put("uri", media.uri); put("name", media.displayName); put("mime", media.mimeType ?: ""); put("size", media.sizeBytes ?: -1)
+                }) }
+                editor.putString("last_playback", JSONObject().apply {
+                    put("name", value.name); put("index", value.index); put("items", items)
+                }.toString())
+            }
+            check(editor.commit())
+        }
     }
 }

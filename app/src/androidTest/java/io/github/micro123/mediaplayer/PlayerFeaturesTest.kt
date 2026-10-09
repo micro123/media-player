@@ -38,6 +38,7 @@ class PlayerFeaturesTest {
     private lateinit var second: MediaItem
     private lateinit var originalPreferences: PlayerPreferences
     private var originalQueue: List<MediaItem> = emptyList()
+    private var originalLastPlayback: LastPlayback? = null
     private var originalRecent: List<MediaItem> = emptyList()
     private lateinit var store: PlaybackStore
     private val created = mutableListOf<Uri>()
@@ -50,6 +51,7 @@ class PlayerFeaturesTest {
         store = PlaybackStore(context)
         originalPreferences = store.readPreferences()
         originalQueue = store.readQueue()
+        originalLastPlayback = store.readLastPlayback()
         originalRecent = LocalMediaRepository(context).readRecent()
         originalBookmarkIds = bookmarksStore.items.value.map { it.id }.toSet()
         bookmarkSnapshotReady = true
@@ -58,7 +60,7 @@ class PlayerFeaturesTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         scenario.onActivity { activity = it }
         await("view model ready") { activity.player != null && !player.library.value.isLoading }
-        onMain { player.setAutoNext(false); player.setVideoOrientation(VideoOrientation.LANDSCAPE) }
+        onMain { player.setAutoNext(false); player.setAutoPip(false); player.setBackgroundVideo(false); player.setVideoOrientation(VideoOrientation.LANDSCAPE) }
     }
 
     @After
@@ -80,6 +82,7 @@ class PlayerFeaturesTest {
                 Thread.sleep(350)
                 if (::originalPreferences.isInitialized) store.writePreferences(originalPreferences)
                 store.writeQueue(originalQueue)
+                store.writeLastPlayback(originalLastPlayback)
                 LocalMediaRepository(context).writeRecent(originalRecent)
                 created.forEach { store.writeBookmark(it.toString(), 0, 0) }
             }
@@ -451,18 +454,196 @@ class PlayerFeaturesTest {
     }
 
     @Test
-    fun homeStopsVideoUnlessExplicitPipWasRequested() {
+    fun screenLockKeepsPlayingAndPausedVideosOnTheirFullscreenPage() {
+        val keyguard = context.getSystemService(android.app.KeyguardManager::class.java)
+        Assume.assumeFalse("Real lock/unlock test requires a device without PIN/pattern; do not alter its security settings", keyguard.isDeviceSecure)
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+        onMain { player.selectTab(2); player.setSpeed(1.0); player.playList(listOf(first, second), 0) }
+        await("video ready for locking") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.seekable }
+        onMain { player.seekTo(12_000) }
+        await("pre-lock position") { player.playback.value.positionMs in 11_800..14_000 }
+        try {
+            for (wasPlaying in listOf(true, false)) {
+                if (!wasPlaying) onMain { player.pause() }
+                val position = player.playback.value.positionMs
+                shell("input keyevent KEYCODE_SLEEP")
+                await("locked video paused without exiting") {
+                    !power.isInteractive && !activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) &&
+                        player.playback.value.status == PlaybackStatus.PAUSED
+                }
+                assertEquals(first.uri, player.playback.value.media?.uri)
+                assertTrue(player.fullScreen.value)
+                assertEquals(0, player.queue.value.index)
+                assertTrue(kotlin.math.abs(player.playback.value.positionMs - position) < 1000)
+                val pausedPosition = player.playback.value.positionMs
+                Thread.sleep(600)
+                assertEquals(pausedPosition, player.playback.value.positionMs)
+                shell("input keyevent KEYCODE_WAKEUP")
+                shell("wm dismiss-keyguard")
+                await("unlock restores fullscreen video page") {
+                    activity.lifecycle.currentState == androidx.lifecycle.Lifecycle.State.RESUMED && !keyguard.isKeyguardLocked &&
+                        player.fullScreen.value && findAccessibleText("媒体库") == null
+                }
+                assertEquals(first.uri, player.playback.value.media?.uri)
+                assertEquals(PlaybackStatus.PAUSED, player.playback.value.status)
+                assertNull(findAccessibleText("播放列表 · 2"))
+                onMain { player.play() }
+                await("unlocked video resumes in same session") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.positionMs > pausedPosition + 250 }
+            }
+            shell("input keyevent KEYCODE_BACK")
+            await("explicit exit still stops video") { player.playback.value.status == PlaybackStatus.IDLE && !player.fullScreen.value }
+            assertEquals(2, player.selectedTab.value)
+        } finally {
+            shell("input keyevent KEYCODE_WAKEUP")
+            shell("wm dismiss-keyguard")
+        }
+    }
+
+    @Test
+    fun videoBackgroundSettingsAreReachableAndPersistInBothSettingsPages() {
+        fun setting(text: String) {
+            // Compose omits off-screen descendants from the accessibility tree.
+            // Scroll the settings container before locating the switch row.
+            repeat(12) {
+                var target = findAccessibleText(text)
+                if (target != null) {
+                    while (target != null && !target.isClickable) target = target.parent
+                    assertNotNull("Clickable setting row $text", target)
+                    assertTrue("Toggle setting row $text", target!!.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+                    return
+                }
+                val scroll = findAccessibleNode { it.isScrollable }
+                assertNotNull("Scrollable settings for $text", scroll)
+                assertTrue("Scroll towards $text", scroll!!.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD))
+                Thread.sleep(250)
+            }
+            fail("Setting not found after scrolling: $text")
+        }
+        onMain { player.stopPlayback(); player.selectTab(3) }
+        await("global settings") { findAccessibleText("文件访问") != null }
+        setting("视频后台播放")
+        await("global background toggle persisted") { store.readPreferences().backgroundVideo }
+        setting("离开应用时自动小窗")
+        await("global PiP toggle persisted") { store.readPreferences().autoPip }
+        onMain { player.playList(listOf(first)) }
+        await("video for in-player settings") { player.playback.value.status == PlaybackStatus.PLAYING }
+        clickAccessibleText("播放设置")
+        setting("视频后台播放")
+        await("in-player background toggle persisted") { !store.readPreferences().backgroundVideo }
+        setting("离开应用时自动小窗")
+        await("in-player PiP toggle persisted") { !store.readPreferences().autoPip }
+        clickAccessibleText("完成")
+        assertEquals(first.uri, player.playback.value.media?.uri)
+        assertTrue(player.fullScreen.value)
+    }
+
+    @Test
+    fun backgroundVideoWithoutPipKeepsPlayingAndCanBeDisabled() {
+        val notifications = context.getSystemService(android.app.NotificationManager::class.java)
+        fun notification() = notifications.activeNotifications.firstOrNull { it.id == MusicPlaybackService.NOTIFICATION_ID }?.notification
+        onMain { player.setAutoPip(false); player.setBackgroundVideo(true); player.setSpeed(1.0); player.playList(listOf(first, second), 0) }
+        await("background video preference and notification") {
+            PlaybackStore(context).readPreferences().backgroundVideo && player.playback.value.status == PlaybackStatus.PLAYING && notification() != null
+        }
+        shell("input keyevent KEYCODE_HOME")
+        await("video in background without PiP") { !activity.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) && !activity.isInPictureInPictureMode }
+        val position = player.playback.value.positionMs
+        await("background video clock advances") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.positionMs > position + 700 }
+        assertTrue(player.fullScreen.value)
+        @Suppress("DEPRECATION")
+        val token = requireNotNull(notification()!!.extras.getParcelable<android.media.session.MediaSession.Token>(android.app.Notification.EXTRA_MEDIA_SESSION))
+        val controller = android.media.session.MediaController(context, token)
+        controller.transportControls.pause()
+        await("video notification pause") { player.playback.value.status == PlaybackStatus.PAUSED }
+        controller.transportControls.play()
+        await("video notification play") { player.playback.value.status == PlaybackStatus.PLAYING }
+        onMain { player.setBackgroundVideo(false) }
+        await("disabling background video pauses and removes notification") { player.playback.value.status == PlaybackStatus.PAUSED && notification() == null }
+        shell("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n io.github.micro123.mediaplayer/.MainActivity")
+        awaitAppWindow()
+        assertTrue(player.fullScreen.value)
+        assertEquals(first.uri, player.playback.value.media?.uri)
+        assertEquals(PlaybackStatus.PAUSED, player.playback.value.status)
+        onMain { player.setBackgroundVideo(true); player.play() }
+        await("re-enabled video background session") { player.playback.value.status == PlaybackStatus.PLAYING && notification() != null }
+        shell("input keyevent KEYCODE_BACK")
+        await("explicit Back stops video even with background enabled") { player.playback.value.status == PlaybackStatus.IDLE && notification() == null }
+    }
+
+    @Test
+    fun homePausesVideoAndReturnKeepsFullscreenSession() {
         onMain { player.setSpeed(1.0); player.playList(listOf(first), 0) }
         await("video ready to leave") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.seekable }
         onMain { player.seekTo(12_000) }
         await("home bookmark position") { player.playback.value.positionMs in 11_800..14_000 }
         shell("input keyevent KEYCODE_HOME")
-        await("home stopped native video") { player.playback.value.status == PlaybackStatus.IDLE && player.playback.value.media == null }
+        await("home paused native video") { player.playback.value.status == PlaybackStatus.PAUSED && player.playback.value.media?.uri == first.uri }
         assertFalse("Home entered PiP automatically", activity.isInPictureInPictureMode)
+        assertTrue(player.fullScreen.value)
+        val pausedPosition = player.playback.value.positionMs
         await("home saved progress") { runBlocking { store.readBookmark(first.uri) }?.positionMs?.let { it >= 11_800 } == true }
         shell("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n io.github.micro123.mediaplayer/.MainActivity")
         awaitAppWindow()
-        assertEquals(PlaybackStatus.IDLE, player.playback.value.status)
+        assertEquals(PlaybackStatus.PAUSED, player.playback.value.status)
+        assertTrue(player.fullScreen.value)
+        assertEquals(first.uri, player.playback.value.media?.uri)
+        assertEquals(pausedPosition, player.playback.value.positionMs)
+        assertNull(findAccessibleText("媒体库"))
+        onMain { player.play() }
+        await("video resumes after Home") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.positionMs > pausedPosition + 300 }
+        shell("input keyevent KEYCODE_BACK")
+        await("Back stops after returning from Home") { player.playback.value.status == PlaybackStatus.IDLE && !player.fullScreen.value }
+    }
+
+    @Test
+    fun screenLockHandlingKeepsTheSessionAndCancelsGesturePreview() {
+        onMain { player.selectTab(2); player.setSpeed(1.0); player.playList(listOf(first, second), 0) }
+        await("video ready for screen-off policy") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.seekable }
+        onMain { player.seekTo(12_000) }
+        await("position before screen-off") { player.playback.value.positionMs in 11_800..14_000 }
+        onMain { player.setSpeedBoost(true); player.onScreenLocked() }
+        await("screen-off pauses") { player.playback.value.status == PlaybackStatus.PAUSED }
+        assertEquals(first.uri, player.playback.value.media?.uri)
+        assertTrue(player.fullScreen.value); assertFalse(player.speedBoost.value)
+        val position = player.playback.value.positionMs
+        onMain { player.onForeground() }
+        assertEquals(PlaybackStatus.PAUSED, player.playback.value.status)
+        assertEquals(position, player.playback.value.positionMs)
+        onMain { player.play() }
+        await("resume before seeking") { player.playback.value.status == PlaybackStatus.PLAYING }
+        onMain { player.beginSeekPreview(); player.updateSeekPreview(25_000, false); player.onScreenLocked() }
+        await("lock clears seek gesture") { player.seekPreview.value == null && player.playback.value.status == PlaybackStatus.PAUSED }
+        assertEquals(first.uri, player.playback.value.media?.uri)
+        assertTrue(player.fullScreen.value)
+        assertTrue(player.playback.value.positionMs < 20_000)
+        onMain { player.onForeground(); player.exitVideo() }
+        await("explicit exit stops retained session") { player.playback.value.status == PlaybackStatus.IDLE }
+        assertEquals(2, player.selectedTab.value)
+    }
+
+    @Test
+    fun enabledAutomaticPipContinuesOnHomeAndDisabledPipPauses() {
+        Assume.assumeTrue(context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE))
+        onMain { player.setAutoPip(true); player.setSpeed(1.0); player.playList(listOf(first), 0) }
+        await("automatic PiP setting persisted") { PlaybackStore(context).readPreferences().autoPip }
+        await("video ready for automatic PiP") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.positionMs > 500 }
+        Thread.sleep(300)
+        shell("input keyevent KEYCODE_HOME")
+        await("Home automatically enters PiP") { activity.isInPictureInPictureMode }
+        val position = player.playback.value.positionMs
+        await("PiP keeps native playback advancing") { player.playback.value.status == PlaybackStatus.PLAYING && player.playback.value.positionMs > position + 700 }
+        shell("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n io.github.micro123.mediaplayer/.MainActivity")
+        await("return from automatic PiP") { !activity.isInPictureInPictureMode && player.playback.value.status == PlaybackStatus.PLAYING }
+        onMain { player.setAutoPip(false) }
+        await("automatic PiP setting disabled") { !PlaybackStore(context).readPreferences().autoPip }
+        Thread.sleep(300)
+        shell("input keyevent KEYCODE_HOME")
+        await("disabled PiP pauses on Home") { !activity.isInPictureInPictureMode && player.playback.value.status == PlaybackStatus.PAUSED }
+        assertTrue(player.fullScreen.value)
+        assertEquals(first.uri, player.playback.value.media?.uri)
+        shell("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n io.github.micro123.mediaplayer/.MainActivity")
+        awaitAppWindow()
+        assertEquals(PlaybackStatus.PAUSED, player.playback.value.status)
     }
 
     @Test

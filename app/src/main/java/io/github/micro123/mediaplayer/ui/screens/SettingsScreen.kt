@@ -16,13 +16,20 @@ import io.github.micro123.mediaplayer.ui.components.SpeedControls
 import io.github.micro123.mediaplayer.ui.components.SkipDurationControls
 import io.github.micro123.mediaplayer.ui.components.OrientationChoices
 import io.github.micro123.mediaplayer.ui.components.AboutSection
+import io.github.micro123.mediaplayer.ui.components.AutoPipControl
+import io.github.micro123.mediaplayer.ui.components.BackgroundVideoControl
+import io.github.micro123.mediaplayer.ui.UpdateState
+import io.github.micro123.mediaplayer.data.update.UpdateDownloadState
+import io.github.micro123.mediaplayer.data.update.UpdateDownloads
 
 @Composable
 fun SettingsScreen(preferences: PlayerPreferences, speed: Double, onSpeed: (Double) -> Unit, onRememberSpeed: (Boolean) -> Unit,
     onAspect: (VideoAspect) -> Unit, onAutoNext: (Boolean) -> Unit, canClear: Boolean, onClearRecent: () -> Unit,
     allFilesAccess: Boolean, onAllFilesAccess: () -> Unit,
     onSkipSeconds: (Int) -> Unit, onOrientation: (VideoOrientation) -> Unit,
-    modifier: Modifier = Modifier) {
+    modifier: Modifier = Modifier, onAutoPip: (Boolean) -> Unit = {}, onBackgroundVideo: (Boolean) -> Unit = {},
+    updateState: UpdateState = UpdateState.Idle, onCheckUpdate: () -> Unit = {},
+    downloadState: UpdateDownloadState = UpdateDownloadState.Empty, downloads: UpdateDownloads? = null) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Text("设置", style = MaterialTheme.typography.headlineLarge)
         Text("文件访问", style = MaterialTheme.typography.titleMedium)
@@ -36,6 +43,8 @@ fun SettingsScreen(preferences: PlayerPreferences, speed: Double, onSpeed: (Doub
         OrientationChoices(preferences.orientation, onOrientation)
         Text("默认横屏。选择保持时，进入视频播放页保留当前屏幕方向；选择会记住。", style = MaterialTheme.typography.bodySmall)
         Text("视频始终全屏，可竖屏或横屏。返回会保存进度并停止播放；主动点小窗可继续播放。", style = MaterialTheme.typography.bodySmall)
+        AutoPipControl(preferences.autoPip, onAutoPip)
+        BackgroundVideoControl(preferences.backgroundVideo, onBackgroundVideo)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("播放列表自动下一项", Modifier.weight(1f))
             Switch(checked = preferences.autoNext, onCheckedChange = onAutoNext)
@@ -52,6 +61,6 @@ fun SettingsScreen(preferences: PlayerPreferences, speed: Double, onSpeed: (Doub
         OutlinedButton(onClick = onClearRecent, enabled = canClear, modifier = Modifier.fillMaxWidth()) { Text("清空最近打开记录") }
         Text("只移除最近列表，不删除设备文件、播放列表或观看进度。", style = MaterialTheme.typography.bodySmall)
         HorizontalDivider()
-        AboutSection()
+        AboutSection(updateState = updateState, onCheckUpdate = onCheckUpdate, downloadState = downloadState, downloads = downloads)
     }
 }

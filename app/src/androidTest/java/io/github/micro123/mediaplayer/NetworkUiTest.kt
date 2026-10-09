@@ -32,6 +32,27 @@ import java.util.concurrent.atomic.AtomicInteger
 class NetworkUiTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
+    @Test fun homeQuickReplayShowsAnOfflineQueueEvenWithAnEmptyLibrary() {
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val replay = LastPlayback("离线 NAS 剧集", List(3) { MediaItem("smb://fixture.invalid/Series/episode-$it.mp4", "episode-$it.mp4", "video/mp4", null) }, 1)
+        val clicked = AtomicInteger()
+        try {
+            scenario.onActivity { activity ->
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                activity.setContent { LocalPlayerTheme { Surface(Modifier.fillMaxSize().systemBarsPadding()) {
+                    LibraryScreen(LibraryState(isLoading = false), {}, { _, _ -> }, {}, {}, {}, {}, {}, {}, {}, {}, false, {},
+                        lastPlayback = replay, onReplay = { clicked.incrementAndGet() })
+                } } }
+            }
+            await("offline replay remains in empty home") { contains("最近一次播放") && contains(replay.name) && contains("episode-1.mp4") }
+            assertTrue(contains("第 2 项 / 3 项 · 从上次进度继续"))
+            assertEquals(0, clicked.get())
+            click("快速回放上次播放列表")
+            await("one replay action") { clicked.get() == 1 }
+            assertTrue(contains(replay.name))
+        } finally { scenario.close() }
+    }
+
     @Test fun localFilesHideSearchAndSortDisplayAndPlaybackTogether() {
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         val first = MediaItem("file:///test/episode2.mp4", "episode2.mp4", "video/mp4", 200)

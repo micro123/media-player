@@ -1,12 +1,14 @@
 package io.github.micro123.mediaplayer.ui.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.text.input.KeyboardType
@@ -95,8 +97,33 @@ fun SkipDurationControls(seconds: Int, onSave: (Int) -> Unit) {
 }
 
 @Composable
+fun AutoPipControl(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().toggleable(value = enabled, role = Role.Switch, onValueChange = onChange), verticalAlignment = Alignment.CenterVertically) {
+            Text("离开应用时自动小窗", Modifier.weight(1f))
+            Switch(checked = enabled, onCheckedChange = null)
+        }
+        Text("开启后，视频播放中按 Home 或切换应用会自动进入小窗。关闭或系统不允许小窗时，按视频后台播放设置处理。",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun BackgroundVideoControl(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().toggleable(value = enabled, role = Role.Switch, onValueChange = onChange), verticalAlignment = Alignment.CenterVertically) {
+            Text("视频后台播放", Modifier.weight(1f))
+            Switch(checked = enabled, onCheckedChange = null)
+        }
+        Text("开启后，不使用小窗时切换应用或锁屏仍继续播放，并显示媒体通知。关闭时暂停并保留视频页面；主动返回退出播放页始终停止。",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
 fun VideoSettingsDialog(preferences: PlayerPreferences, onAspect: (VideoAspect) -> Unit,
-    onSkipSeconds: (Int) -> Unit, onAutoNext: (Boolean) -> Unit, onOrientation: (VideoOrientation) -> Unit, onDismiss: () -> Unit) {
+    onSkipSeconds: (Int) -> Unit, onAutoNext: (Boolean) -> Unit, onOrientation: (VideoOrientation) -> Unit, onDismiss: () -> Unit,
+    onAutoPip: (Boolean) -> Unit = {}, onBackgroundVideo: (Boolean) -> Unit = {}) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text("播放设置") },
         text = {
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -113,6 +140,9 @@ fun VideoSettingsDialog(preferences: PlayerPreferences, onAspect: (VideoAspect) 
                 Text("全屏播放方向", style = MaterialTheme.typography.titleSmall)
                 OrientationChoices(preferences.orientation, onOrientation)
                 Text("保持：不切换方向，保持当前横屏或竖屏。", style = MaterialTheme.typography.bodySmall)
+                HorizontalDivider()
+                AutoPipControl(preferences.autoPip, onAutoPip)
+                BackgroundVideoControl(preferences.backgroundVideo, onBackgroundVideo)
             }
         }, confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } })
 }

@@ -15,7 +15,7 @@ import io.github.micro123.mediaplayer.data.AudioMetadata
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.combine
 
-/** The application playback session outlives Activities. Only music owns a foreground media service. */
+/** Application-owned session for music and optional video background playback. */
 class MusicPlaybackService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val player get() = (application as PlayerApplication).container.player
@@ -23,10 +23,10 @@ class MusicPlaybackService : Service() {
     private lateinit var notifications: NotificationManager
     private lateinit var wakeLock: PowerManager.WakeLock
     private var lastNotification: NotificationKey? = null
-    private var hasAudio = false
+    private var hasMedia = false
     private var shuttingDown = false
     private val handler = Handler(Looper.getMainLooper())
-    private val abandonPendingStart = Runnable { if (!hasAudio) shutdown(false) }
+    private val abandonPendingStart = Runnable { if (!hasMedia) shutdown(false) }
     private val noisy = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) { if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) player.pause() }
     }
@@ -34,8 +34,8 @@ class MusicPlaybackService : Service() {
     override fun onCreate() {
         super.onCreate()
         notifications = getSystemService(NotificationManager::class.java)
-        notifications.createNotificationChannel(NotificationChannel(CHANNEL, "音乐播放", NotificationManager.IMPORTANCE_LOW).apply {
-            description = "后台音乐、锁屏信息与播放控制"; setShowBadge(false)
+        notifications.createNotificationChannel(NotificationChannel(CHANNEL, "媒体播放", NotificationManager.IMPORTANCE_LOW).apply {
+            description = "后台音视频、锁屏信息与播放控制"; setShowBadge(false)
         })
         wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:music")
             .apply { setReferenceCounted(false) }
@@ -58,14 +58,16 @@ class MusicPlaybackService : Service() {
         else startForeground(NOTIFICATION_ID, initial)
         handler.postDelayed(abandonPendingStart, 15_000)
         scope.launch {
-            combine(player.playback, player.audioMetadata, player.queue) { state, tags, queue -> Triple(state, tags, queue) }.collect { (state, tags, _) ->
+            combine(player.playback, player.audioMetadata, player.queue, player.preferences) { state, tags, _, preferences ->
+                Triple(state, tags, preferences.backgroundVideo)
+            }.collect { (state, tags, backgroundVideo) ->
                 if (shuttingDown) return@collect
                 val media = state.media
-                if (media != null && !media.isVideo) {
-                    hasAudio = true
+                if (media != null && (!media.isVideo || backgroundVideo)) {
+                    hasMedia = true
                     handler.removeCallbacks(abandonPendingStart)
                     update(state, tags.takeIf { it.uri == media.uri } ?: AudioMetadata(uri = media.uri, title = media.displayName))
-                } else if (hasAudio || media?.isVideo == true && player.queue.value.current?.isVideo != false) shutdown(false)
+                } else if (hasMedia || media?.isVideo == true && player.queue.value.current?.isVideo != false) shutdown(false)
             }
         }
     }
@@ -117,7 +119,7 @@ class MusicPlaybackService : Service() {
     private fun buildNotification(state: PlaybackState?, tags: AudioMetadata): Notification {
         val playing = state?.status in setOf(PlaybackStatus.PLAYING, PlaybackStatus.BUFFERING)
         val builder = Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_music_notification)
-            .setContentTitle(tags.title.ifBlank { state?.media?.displayName ?: player.queue.value.current?.displayName ?: "正在载入音乐" })
+            .setContentTitle(tags.title.ifBlank { state?.media?.displayName ?: player.queue.value.current?.displayName ?: "正在载入媒体" })
             .setContentText(listOf(tags.artist, tags.album).filter { it.isNotBlank() }.joinToString(" · "))
             .setContentIntent(openPlayer()).setDeleteIntent(command(ACTION_STOP)).setOnlyAlertOnce(true).setShowWhen(false)
             .setVisibility(Notification.VISIBILITY_PUBLIC).setCategory(Notification.CATEGORY_TRANSPORT).setOngoing(playing)
@@ -156,7 +158,7 @@ class MusicPlaybackService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-    override fun onTaskRemoved(rootIntent: Intent?) { /* Music intentionally survives removing the activity task. */ }
+    override fun onTaskRemoved(rootIntent: Intent?) { /* Background playback outlives the activity task. */ }
     override fun onDestroy() {
         handler.removeCallbacks(abandonPendingStart)
         scope.cancel()
@@ -164,7 +166,7 @@ class MusicPlaybackService : Service() {
         if (wakeLock.isHeld) wakeLock.release()
         session.release()
         notifications.cancel(NOTIFICATION_ID)
-        if (!shuttingDown && player.playback.value.media?.isVideo == false) player.stopPlayback()
+        if (!shuttingDown && player.playback.value.media != null) player.stopPlayback()
         super.onDestroy()
     }
 

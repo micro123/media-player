@@ -144,6 +144,7 @@ class NavidromeTest {
         FixtureServer().use { server ->
             val store = PlaybackStore(context)
             val oldQueue = store.readQueue()
+            val oldLastPlayback = store.readLastPlayback()
             val oldRecent = container.mediaRepository.readRecent()
             val root = NavidromeAddress.fromServer(server.address)
             val models = androidx.lifecycle.ViewModelStore()
@@ -223,7 +224,7 @@ class NavidromeTest {
                 await("progress saved by stable identity") { runBlocking { store.readBookmark(root.at("song", "song-a")) }?.positionMs == 12000L }
             } finally {
                 instrumentation.runOnMainSync { vm?.stopPlayback(); models.clear() }
-                store.writeQueue(oldQueue); container.mediaRepository.writeRecent(oldRecent)
+                store.writeQueue(oldQueue); store.writeLastPlayback(oldLastPlayback); container.mediaRepository.writeRecent(oldRecent)
                 store.writeBookmark(root.at("song", "song-a"), 0, 0)
                 store.writeBookmark(root.at("song", "song-b"), 0, 0)
                 store.writeBookmark(root.at("song", "song-0"), 0, 0)

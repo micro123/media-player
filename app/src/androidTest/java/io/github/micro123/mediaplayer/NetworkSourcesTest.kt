@@ -140,7 +140,7 @@ class NetworkSourcesTest {
     }
     @Test fun browserNavigationQueueStopsAndRetryPreserveDirectory() = runBlocking {
         val store = PlaybackStore(context)
-        val oldQueue = store.readQueue(); val repositoryForRecent = MediaRepository(context)
+        val oldQueue = store.readQueue(); val oldLastPlayback = store.readLastPlayback(); val repositoryForRecent = MediaRepository(context)
         val oldRecent = repositoryForRecent.readRecent()
         var failList = false
         val transport = object : RemoteTransport {
@@ -250,7 +250,7 @@ class NetworkSourcesTest {
         } finally {
             instrumentation.runOnMainSync { models.clear() }
             Thread.sleep(350)
-            store.writeQueue(oldQueue); repositoryForRecent.writeRecent(oldRecent)
+            store.writeQueue(oldQueue); store.writeLastPlayback(oldLastPlayback); repositoryForRecent.writeRecent(oldRecent)
             store.writeBookmark("$root/Season/episode-2.mp4", 0, 0)
             localFixture.deleteRecursively()
         }

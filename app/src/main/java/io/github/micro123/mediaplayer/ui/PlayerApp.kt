@@ -48,7 +48,10 @@ fun PlayerApp(container: AppContainer) {
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
     val audioPlayerOpen by viewModel.audioPlayerOpen.collectAsStateWithLifecycle()
     val queue by viewModel.queue.collectAsStateWithLifecycle()
+    val lastPlayback by viewModel.lastPlayback.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+    val updateState by container.updates.state.collectAsStateWithLifecycle()
+    val updateDownloadState by container.updateDownloads.state.collectAsStateWithLifecycle()
     val speed by viewModel.baseSpeed.collectAsStateWithLifecycle()
     val boost by viewModel.speedBoost.collectAsStateWithLifecycle()
     val resumePosition by viewModel.resumePosition.collectAsStateWithLifecycle()
@@ -93,8 +96,8 @@ fun PlayerApp(container: AppContainer) {
         onDispose { activity?.bindPlayer(null) }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onAccessChanged() }
-    LaunchedEffect(activity, isVideo, playback.canControl, playback.status, videoRatio) {
-        activity?.updatePlaybackPresentation(isVideo && playback.canControl, playback.status == PlaybackStatus.PLAYING, videoRatio)
+    LaunchedEffect(activity, isVideo, playback.canControl, playback.status, videoRatio, preferences.autoPip) {
+        activity?.updatePlaybackPresentation(isVideo && playback.canControl, playback.status == PlaybackStatus.PLAYING, videoRatio, preferences.autoPip)
     }
     BackHandler(enabled = !isVideo && !audioPlayerOpen && selectedTab != 0) { viewModel.selectTab(0) }
     BackHandler(enabled = !isVideo && !audioPlayerOpen && selectedTab == 1 && fileView == FileView.LOCAL) {
@@ -235,7 +238,10 @@ fun PlayerApp(container: AppContainer) {
                     viewModel::enterFolder, viewModel::upFolder, viewModel::refreshLibrary, addFiles, { viewModel.selectTab(2) },
                     preferences.groupMedia, viewModel::setGroupMedia, modifier,
                     onNetwork = { editingLocation = null; showNetwork = true }, onImportPlaylist = importPlaylist,
-                    onBookmarks = { viewModel.selectTab(4) })
+                    onBookmarks = { viewModel.selectTab(4) }, lastPlayback = lastPlayback, onReplay = {
+                        if (lastPlayback?.items?.any { it.sourceKind != io.github.micro123.mediaplayer.core.MediaSourceKind.LOCAL } == true)
+                            withNetworkAccess { viewModel.replayLastPlayback() } else viewModel.replayLastPlayback()
+                    })
                 }
                 1 -> when (fileView) {
                     FileView.LOCATIONS -> FilesScreen(bookmarks, {
@@ -243,7 +249,7 @@ fun PlayerApp(container: AppContainer) {
                     }, { folderPicker.launch(null) }, { editingLocation = null; showNetwork = true },
                         openSavedBookmark, editBookmark, viewModel::removeBookmark, modifier)
                     FileView.LOCAL -> browsingState.SaveableStateProvider("browse-local") {
-                        LibraryScreen(library, openFile, selectMedia, viewModel::selectSource,
+                        LibraryScreen(library, openFile, viewModel::playLocalDirectory, viewModel::selectSource,
                             { accessPicker.launch(viewModel.requiredPermissions()) }, {
                                 if (container.mediaBrowser.access().allFiles) viewModel.browseStorage() else showStorageAccess = true
                             }, viewModel::enterFolder, viewModel::upFolder, viewModel::refreshLocalFolder, addFiles,
@@ -279,7 +285,10 @@ fun PlayerApp(container: AppContainer) {
                     { editingLocation = null; showNetwork = true }, editBookmark, modifier)
                 else -> SettingsScreen(preferences, speed, viewModel::setSpeed, viewModel::setRememberSpeed,
                     viewModel::setAspect, viewModel::setAutoNext, library.recent.isNotEmpty(), viewModel::clearRecent,
-                    library.access.allFiles, { showStorageAccess = true }, viewModel::setSkipSeconds, viewModel::setVideoOrientation, modifier)
+                    library.access.allFiles, { showStorageAccess = true }, viewModel::setSkipSeconds, viewModel::setVideoOrientation, modifier,
+                    onAutoPip = viewModel::setAutoPip, onBackgroundVideo = viewModel::setBackgroundVideo,
+                    updateState = updateState, onCheckUpdate = container.updates::checkNow,
+                    downloadState = updateDownloadState, downloads = container.updateDownloads)
             }
         }
         if (isVideo && !inPip) SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
@@ -318,7 +327,8 @@ fun PlayerApp(container: AppContainer) {
                 { selectQueueItem(it); showQueue = false }, viewModel::removeFromQueue, viewModel::moveQueueItem,
                 { showQueue = false; addFiles() }, { showQueue = false }, onPreview = container.queuePreviews::read)
             if (showVideoSettings && isVideo) VideoSettingsDialog(preferences, viewModel::setAspect,
-                viewModel::setSkipSeconds, viewModel::setAutoNext, viewModel::setVideoOrientation) { showVideoSettings = false }
+                viewModel::setSkipSeconds, viewModel::setAutoNext, viewModel::setVideoOrientation,
+                onDismiss = { showVideoSettings = false }, onAutoPip = viewModel::setAutoPip, onBackgroundVideo = viewModel::setBackgroundVideo)
         }
         if (isVideo) VideoPlayerTheme { playbackOverlays() } else playbackOverlays()
     }

@@ -21,6 +21,7 @@ import io.github.micro123.mediaplayer.data.FolderEntry
 import io.github.micro123.mediaplayer.data.LibraryMediaEntry
 import io.github.micro123.mediaplayer.data.BrowseSort
 import io.github.micro123.mediaplayer.data.sortBrowseItems
+import io.github.micro123.mediaplayer.data.LastPlayback
 import io.github.micro123.mediaplayer.ui.components.SearchButton
 import io.github.micro123.mediaplayer.ui.components.BrowserSearchField
 import io.github.micro123.mediaplayer.ui.components.BrowseSortButton
@@ -36,7 +37,8 @@ fun LibraryScreen(state: LibraryState, onOpenFile: () -> Unit, onSelect: (List<M
     onAddFiles: () -> Unit, onQueue: () -> Unit, groupMedia: Boolean, onGroupMedia: (Boolean) -> Unit,
     modifier: Modifier = Modifier, onNetwork: () -> Unit = {}, onImportPlaylist: () -> Unit = {}, onBookmarks: () -> Unit = {},
     onFileRoot: () -> Unit = {}, onSaveFolder: () -> Unit = {}, fileSort: BrowseSort = BrowseSort.NAME,
-    fileSortDescending: Boolean = false, onFileSort: (BrowseSort, Boolean) -> Unit = { _, _ -> }) {
+    fileSortDescending: Boolean = false, onFileSort: (BrowseSort, Boolean) -> Unit = { _, _ -> },
+    lastPlayback: LastPlayback? = null, onReplay: () -> Unit = {}) {
     var filter by rememberSaveable { mutableIntStateOf(0) }
     var search by rememberSaveable(state.source) { mutableStateOf("") }
     var searchOpen by rememberSaveable(state.source) { mutableStateOf(false) }
@@ -92,6 +94,25 @@ fun LibraryScreen(state: LibraryState, onOpenFile: () -> Unit, onSelect: (List<M
                             DropdownMenuItem(text = { Text("刷新媒体库") }, onClick = { more = false; onRefresh() })
                             DropdownMenuItem(text = { Text("添加多个文件到播放列表") }, onClick = { more = false; onAddFiles() })
                             DropdownMenuItem(text = { Text("查看播放列表") }, onClick = { more = false; onQueue() })
+                        }
+                    }
+                }
+                if (!folderMode && lastPlayback?.current != null) {
+                    OutlinedCard(onClick = onReplay, modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = "快速回放上次播放列表"
+                    }) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            PlayerSymbol(PlayerIcon.REPLAY, Modifier.size(30.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("最近一次播放", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(lastPlayback.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+                                Text(lastPlayback.current!!.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall)
+                                Text("第 ${lastPlayback.index + 1} 项 / ${lastPlayback.items.size} 项 · 从上次进度继续",
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            PlayerSymbol(PlayerIcon.PLAY, Modifier.size(24.dp))
                         }
                     }
                 }

@@ -57,7 +57,7 @@ class PlayerViewModel(
     private val audioMetadataRepository: AudioMetadataRepository? = null,
     private val videoPreviewRepository: VideoPreviewRepository? = null,
     private val navidrome: io.github.micro123.mediaplayer.data.navidrome.NavidromeRepository? = null,
-    private val onAudioStarting: (() -> Unit)? = null,
+    private val onForegroundPlaybackStarting: (() -> Unit)? = null,
 ) : ViewModel() {
     private val mutableSeekPreview = MutableStateFlow<VideoSeekPreview?>(null)
     val seekPreview = mutableSeekPreview.asStateFlow()
@@ -83,6 +83,8 @@ class PlayerViewModel(
     val playback = engine.state
     private val mutableQueue = MutableStateFlow(PlaylistState())
     val queue = mutableQueue.asStateFlow()
+    private val mutableLastPlayback = MutableStateFlow<LastPlayback?>(null)
+    val lastPlayback = mutableLastPlayback.asStateFlow()
     private val mutablePreferences = MutableStateFlow(store.readPreferences())
     val preferences = mutablePreferences.asStateFlow()
     private val mutableSpeed = MutableStateFlow(if (preferences.value.rememberSpeed) preferences.value.lastSpeed else 1.0)
@@ -104,6 +106,7 @@ class PlayerViewModel(
     private var completedUri: String? = null
     private var bookmarkStamp = 0L
     private var bookmarkUri: String? = null
+    private var videoInBackground = false
 
     init {
         viewModelScope.launch {
@@ -139,10 +142,14 @@ class PlayerViewModel(
             try {
                 val recent = repository.readRecent()
                 val items = store.readQueue()
+                mutableLastPlayback.value = store.readLastPlayback()
                 mutableQueue.value = PlaylistState(items)
                 mutableLibrary.update { it.copy(recent = recent, isLoading = false) }
                 // Subscribe after restoring, so startup never overwrites a saved queue with an empty one.
                 launch { queue.map { it.items }.distinctUntilChanged().drop(1).collect { store.writeQueue(it) } }
+                launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                    lastPlayback.drop(1).collect { store.writeLastPlayback(it) }
+                }
                 refreshLibrary()
                 tree?.let { restoreFolder(it) }
                 savedStateHandle.get<String>("selected_uri")?.let { uri ->
@@ -195,8 +202,20 @@ class PlayerViewModel(
         stopPlayback()
     }
 
+    fun onScreenLocked() {
+        videoInBackground = true
+        if (playback.value.media?.isVideo != true) return
+        clearSeekPreview()
+        setSpeedBoost(false)
+        if (!preferences.value.backgroundVideo) pause()
+        // Retain media, progress and fullscreen state. Background playback is opt-in;
+        // returning never reloads the file or silently resumes a paused session.
+    }
+
+    fun onForeground() { videoInBackground = false }
+
     fun onBackground() {
-        if (playback.value.media?.isVideo == true) stopPlayback()
+        onScreenLocked()
         // Music continues in its foreground service, including queue changes and screen-off playback.
     }
 
@@ -335,14 +354,32 @@ class PlayerViewModel(
         cancelRemoteQueue()
         if (items.isEmpty()) return
         val ordered = if (items.all { it.sourceKind == io.github.micro123.mediaplayer.core.MediaSourceKind.NAVIDROME }) items else items.distinctBy { it.uri }
-        startPlayback(ordered, index)
+        val name = when {
+            selectedTab.value == 1 && fileView.value == FileView.LOCAL -> currentFolderName()
+            selectedTab.value == 1 && fileView.value == FileView.NETWORK -> currentFolderName()
+            else -> ordered.getOrNull(index)?.displayName.orEmpty()
+        }
+        startPlayback(ordered, index, replayName = name)
     }
 
-    fun playIndex(index: Int) { startPlayback(queue.value.items, index) }
+    fun playIndex(index: Int) { startPlayback(queue.value.items, index, replayName = lastPlayback.value?.name) }
+    fun playLocalDirectory(items: List<MediaItem>, index: Int) {
+        val selected = items.getOrNull(index) ?: return
+        val directoryItems = sortBrowseItems(library.value.entries.mapNotNull { it.media }, preferences.value.fileSort,
+            preferences.value.fileSortDescending, { it.displayName }, { false }, { it.sizeBytes })
+        val selectedIndex = directoryItems.indexOfFirst { it.uri == selected.uri }
+        if (selectedIndex >= 0) startPlayback(directoryItems, selectedIndex, replayName = currentFolderName())
+    }
+    fun replayLastPlayback() {
+        val snapshot = lastPlayback.value ?: return
+        mutableQueue.value = PlaylistState(snapshot.items, snapshot.index)
+        startPlayback(snapshot.items, snapshot.index, replayName = snapshot.name)
+    }
     fun previous() { if (queue.value.hasPrevious) playIndex(queue.value.index - 1) }
     fun next() { if (queue.value.hasNext) playIndex(queue.value.index + 1) }
 
-    private fun startPlayback(items: List<MediaItem>, index: Int, showPlayer: Boolean = true, explicitPosition: Long? = null, external: Boolean = false) {
+    private fun startPlayback(items: List<MediaItem>, index: Int, showPlayer: Boolean = true, explicitPosition: Long? = null, external: Boolean = false,
+        replayName: String? = null) {
         val selected = items.getOrNull(index) ?: return
         cancelRemoteQueue()
         clearSeekPreview()
@@ -350,6 +387,10 @@ class PlayerViewModel(
         setSpeedBoost(false)
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
+            initialized.await()
+            // Save the attempted queue before opening anything. An offline NAS or
+            // deleted file never removes the quick-replay entry or validates siblings.
+            mutableLastPlayback.value = LastPlayback(replayName?.takeIf { it.isNotBlank() } ?: selected.displayName, items, index)
             mutableLibrary.update { it.copy(openFailed = false) }
             try {
                 savePosition(oldState)
@@ -361,11 +402,13 @@ class PlayerViewModel(
                 mutableResume.value = bookmark?.positionMs ?: 0
                 val updated = items.toMutableList().apply { this[index] = media }
                 mutableQueue.value = PlaylistState(updated, index)
+                mutableLastPlayback.update { it?.copy(items = updated, index = index) }
                 val recent = (listOf(media) + library.value.recent.filterNot { it.uri == media.uri }).take(LocalMediaRepository.MAX_RECENT)
                 repository.writeRecent(recent)
                 mutableLibrary.update { it.copy(recent = recent) }
-                if (!media.isVideo) onAudioStarting?.invoke()
+                if (!media.isVideo || preferences.value.backgroundVideo) onForegroundPlaybackStarting?.invoke()
                 engine.load(media, explicitPosition ?: mutableResume.value)
+                if (media.isVideo && videoInBackground && !preferences.value.backgroundVideo) engine.pause()
                 savedStateHandle["selected_uri"] = media.uri
                 savedStateHandle["full_screen"] = media.isVideo
                 savedStateHandle["audio_player_open"] = !media.isVideo && showPlayer
@@ -684,6 +727,7 @@ class PlayerViewModel(
         val items = previous.items.toMutableList().apply { removeAt(index) }
         val current = if (index < previous.index) previous.index - 1 else previous.index.coerceAtMost(items.lastIndex)
         mutableQueue.value = PlaylistState(items, current)
+        updateLastPlaybackQueue()
         if (index == previous.index) {
             if (items.isEmpty()) {
                 stopPlayback()
@@ -696,6 +740,12 @@ class PlayerViewModel(
         val target = index + delta
         if (index !in value.items.indices || target !in value.items.indices) return
         mutableQueue.value = value.move(index, target)
+        updateLastPlaybackQueue()
+    }
+
+    private fun updateLastPlaybackQueue() {
+        val snapshot = queue.value
+        if (snapshot.current != null) mutableLastPlayback.update { it?.copy(items = snapshot.items, index = snapshot.index) }
     }
 
     fun setSpeed(value: Double) {
@@ -718,6 +768,14 @@ class PlayerViewModel(
     }
 
     fun setAutoNext(enabled: Boolean) { mutablePreferences.update { it.copy(autoNext = enabled) } }
+    fun setAutoPip(enabled: Boolean) { mutablePreferences.update { it.copy(autoPip = enabled) } }
+    fun setBackgroundVideo(enabled: Boolean) {
+        mutablePreferences.update { it.copy(backgroundVideo = enabled) }
+        if (playback.value.media?.isVideo == true) {
+            if (enabled) onForegroundPlaybackStarting?.invoke()
+            else if (videoInBackground) pause()
+        }
+    }
 
     fun setGroupMedia(enabled: Boolean) { mutablePreferences.update { it.copy(groupMedia = enabled) } }
 

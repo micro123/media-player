@@ -41,9 +41,18 @@ class AppContainer(private val application: Application,
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
                 io.github.micro123.mediaplayer.ui.PlayerViewModel(mediaRepository, createPlaybackEngine(), sessionState(),
                     mediaBrowser, playbackStore, bookmarks, playlists, clips, network, audioMetadata, videoPreviews, navidrome,
-                    onAudioStarting = { MusicPlaybackService.start(application) }) as T
+                    onForegroundPlaybackStarting = { MusicPlaybackService.start(application) }) as T
         })[io.github.micro123.mediaplayer.ui.PlayerViewModel::class.java]
     }
+
+    val updates: io.github.micro123.mediaplayer.ui.UpdateViewModel by lazy {
+        androidx.lifecycle.ViewModelProvider(playerOwner, object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                io.github.micro123.mediaplayer.ui.UpdateViewModel() as T
+        })[io.github.micro123.mediaplayer.ui.UpdateViewModel::class.java]
+    }
+    val updateDownloads by lazy { io.github.micro123.mediaplayer.data.update.UpdateDownloads(application) }
 
     // Only browsing/player presentation lives here. Persistent preferences, queues and
     // progress use PlaybackStore; a killed process must not silently restart music.

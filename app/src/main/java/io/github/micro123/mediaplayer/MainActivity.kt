@@ -3,6 +3,7 @@ package io.github.micro123.mediaplayer
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
 import android.app.PendingIntent
+import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -14,6 +15,7 @@ import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.util.Rational
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -38,6 +40,7 @@ class MainActivity : ComponentActivity() {
         private set
     private var videoActive = false
     private var playing = false
+    private var autoPip = false
     private var aspect = 16.0 / 9.0
     private var videoBounds: Rect? = null
     private var pendingExternalMedia: ExternalMediaRequest? = null
@@ -46,7 +49,10 @@ class MainActivity : ComponentActivity() {
         private set
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == ACTION_PIP_PLAY) player?.togglePlayback()
+            when (intent?.action) {
+                ACTION_PIP_PLAY -> player?.togglePlayback()
+                Intent.ACTION_SCREEN_OFF -> player?.onScreenLocked()
+            }
         }
     }
 
@@ -58,13 +64,16 @@ class MainActivity : ComponentActivity() {
             receiveExternalMedia(Intent(Intent.ACTION_VIEW).setDataAndType(uri.toUri(), savedInstanceState.getString("pending_external_mime")))
         }
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT), navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
-        ContextCompat.registerReceiver(this, pipReceiver, IntentFilter(ACTION_PIP_PLAY), ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(this, pipReceiver, IntentFilter(ACTION_PIP_PLAY).apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }, ContextCompat.RECEIVER_NOT_EXPORTED)
         val container = (application as PlayerApplication).container
         setContent { LocalPlayerTheme { PlayerApp(container) } }
     }
 
     fun bindPlayer(value: PlayerViewModel?) {
         player = value
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED) && !isScreenLocked()) value?.onForeground()
         dispatchExternalMedia()
     }
 
@@ -112,9 +121,10 @@ class MainActivity : ComponentActivity() {
         // MAIN only brings the existing playback forward; it never reloads a file.
     }
 
-    fun updatePlaybackPresentation(active: Boolean, isPlaying: Boolean, videoAspect: Double) {
+    fun updatePlaybackPresentation(active: Boolean, isPlaying: Boolean, videoAspect: Double, automaticPip: Boolean = false) {
         videoActive = active
         playing = isPlaying
+        autoPip = automaticPip
         aspect = videoAspect.takeIf { it.isFinite() && it > 0 } ?: (16.0 / 9.0)
         if (packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) setPictureInPictureParams(pipParams())
     }
@@ -137,11 +147,26 @@ class MainActivity : ComponentActivity() {
             .apply {
                 videoBounds?.takeIf { !it.isEmpty }?.let { setSourceRectHint(it) }
                 if (Build.VERSION.SDK_INT >= 31) {
-                    // Leaving the player stops video; PiP is entered only by its explicit action.
-                    setAutoEnterEnabled(false)
+                    setAutoEnterEnabled(autoPip && videoActive && playing && !isScreenLocked())
                     setSeamlessResizeEnabled(true)
                 }
             }.build()
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // Android 12+ handles gesture/button Home transitions through auto-enter.
+        if (Build.VERSION.SDK_INT < 31 && autoPip && videoActive && playing && !isScreenLocked()) requestPip()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!isScreenLocked()) player?.onForeground()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!isScreenLocked()) player?.onForeground()
     }
 
     fun requestPip(): Boolean {
@@ -173,12 +198,18 @@ class MainActivity : ComponentActivity() {
         mutablePip.value = isInPictureInPictureMode
         mutableEnteringPip.value = false
         player?.setSpeedBoost(false)
-        if (!isInPictureInPictureMode && !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) player?.exitVideo()
+        if (!isInPictureInPictureMode && !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            // Closing the floating window ends video; waking the screen preserves it.
+            if (isScreenLocked()) player?.onScreenLocked() else player?.exitVideo()
+        }
     }
+
+    private fun isScreenLocked(): Boolean = !isFinishing &&
+        (!getSystemService(PowerManager::class.java).isInteractive || getSystemService(KeyguardManager::class.java).isKeyguardLocked)
 
     override fun onStop() {
         if (!isChangingConfigurations && !isInPictureInPictureMode && !mutableEnteringPip.value) {
-            player?.onBackground()
+            if (isFinishing) player?.exitVideo() else player?.onBackground()
         }
         super.onStop()
     }

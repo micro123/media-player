@@ -29,6 +29,7 @@ class BackgroundMusicTest {
         val container = (context.applicationContext as PlayerApplication).container
         val preferences = container.playbackStore.readPreferences()
         val oldQueue = container.playbackStore.readQueue()
+        val oldLastPlayback = container.playbackStore.readLastPlayback()
         val oldRecent = LocalMediaRepository(context).readRecent()
         val root = File(context.cacheDir, "background-music-${System.nanoTime()}").apply { mkdirs() }
         var scenario: ActivityScenario<MainActivity>? = null
@@ -94,10 +95,10 @@ class BackgroundMusicTest {
             val videoFile = File(root, "video.mp4")
             instrumentation.context.assets.open("feature-test-video.mp4").use { input -> videoFile.outputStream().use { input.copyTo(it) } }
             val video = MediaItem(android.net.Uri.fromFile(videoFile).toString(), "video.mp4", "video/mp4", videoFile.length())
-            instrumentation.runOnMainSync { container.player.playList(listOf(video)) }
+            instrumentation.runOnMainSync { container.player.setAutoPip(false); container.player.setBackgroundVideo(false); container.player.playList(listOf(video)) }
             await("video starts") { container.player.playback.value.status == PlaybackStatus.PLAYING }
             instrumentation.uiAutomation.executeShellCommand("input keyevent 3").close()
-            await("video stops on background") { container.player.playback.value.status == PlaybackStatus.IDLE && notification() == null }
+            await("video pauses on background") { container.player.playback.value.status == PlaybackStatus.PAUSED && container.player.playback.value.media != null && notification() == null }
         } finally {
             messages.cancel()
             instrumentation.runOnMainSync { container.player.stopPlayback() }
@@ -105,6 +106,7 @@ class BackgroundMusicTest {
             SystemClock.sleep(400)
             container.playbackStore.writePreferences(preferences)
             container.playbackStore.writeQueue(oldQueue)
+            container.playbackStore.writeLastPlayback(oldLastPlayback)
             LocalMediaRepository(context).writeRecent(oldRecent)
             root.listFiles().orEmpty().forEach { container.playbackStore.writeBookmark(android.net.Uri.fromFile(it).toString(), 0, 0) }
             root.deleteRecursively()

@@ -17,9 +17,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.micro123.mediaplayer.BuildConfig
 import io.github.micro123.mediaplayer.R
+import io.github.micro123.mediaplayer.ui.UpdateState
+import io.github.micro123.mediaplayer.data.update.GithubReleaseClient
+import io.github.micro123.mediaplayer.data.update.UpdateDownloadState
+import io.github.micro123.mediaplayer.data.update.UpdateDownloads
 
 @Composable
-fun AboutSection(modifier: Modifier = Modifier) {
+fun AboutSection(modifier: Modifier = Modifier, updateState: UpdateState = UpdateState.Idle, onCheckUpdate: () -> Unit = {},
+    downloadState: UpdateDownloadState = UpdateDownloadState.Empty, downloads: UpdateDownloads? = null) {
     val context = LocalContext.current
     val handler = LocalUriHandler.current
     fun open(url: String) {
@@ -43,10 +48,14 @@ fun AboutSection(modifier: Modifier = Modifier) {
                 Text("播放内核：libmpv · mpv 0.41.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             HorizontalDivider()
+            UpdateSection(updateState, onCheckUpdate, ::open, downloadState = downloadState,
+                onDownload = { apk, tag -> downloads?.start(apk, tag) }, onCancelDownload = { downloads?.cancel() },
+                onRetryDownload = { downloads?.retry() }, installationIntent = downloads?.let { it::installationIntent })
+            HorizontalDivider()
             ListItem(headlineContent = { Text("代码仓库") }, supportingContent = { Text("micro123/media-player") },
                 trailingContent = { PlayerSymbol(PlayerIcon.OPEN_EXTERNAL, Modifier.size(20.dp)) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                modifier = Modifier.clickable { open("https://github.com/micro123/media-player") })
+                modifier = Modifier.clickable { open(GithubReleaseClient.REPOSITORY_URL) })
             ListItem(headlineContent = { Text("开源许可") }, supportingContent = { Text("GPL-3.0") },
                 trailingContent = { PlayerSymbol(PlayerIcon.OPEN_EXTERNAL, Modifier.size(20.dp)) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
